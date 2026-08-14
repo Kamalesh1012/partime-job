@@ -5,3 +5,5 @@ python-jose
 PyJWT
 supabase
 pydantic
+pydantic-settings
+httpx
