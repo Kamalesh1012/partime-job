@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import routers
-from routes import auth, jobs, applications, profiles, admin, notifications
+from backend.routes import auth, jobs, applications, profiles, admin, notifications
 
 # Lifespan context
 @asynccontextmanager
@@ -34,7 +34,7 @@ app = FastAPI(
 )
 
 # CORS configuration
-from app.core.config import settings
+from backend.app.core.config import settings
 
 frontend_url = settings.FRONTEND_URL if hasattr(settings, 'FRONTEND_URL') and settings.FRONTEND_URL else 'http://localhost:5173'
 origins = [
