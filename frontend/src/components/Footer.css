@@ -1,0 +1,126 @@
+/* Footer Styles */
+.footer {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #e0e7ff;
+  padding: 60px 20px 20px;
+  margin-top: 100px;
+}
+
+.dark .footer {
+  background: linear-gradient(135deg, #0a0e27 0%, #16213e 100%);
+}
+
+.footer-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 40px;
+  padding-bottom: 40px;
+  border-bottom: 1px solid rgba(224, 231, 255, 0.1);
+}
+
+.footer-section h3 {
+  font-size: 1.1rem;
+  margin-bottom: 20px;
+  color: #fff;
+  font-weight: 600;
+}
+
+.footer-section p {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin-bottom: 20px;
+  color: #cbd5e1;
+}
+
+.footer-section ul {
+  list-style: none;
+  padding: 0;
+}
+
+.footer-section li {
+  margin-bottom: 12px;
+}
+
+.footer-section a {
+  color: #cbd5e1;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  font-size: 0.95rem;
+}
+
+.footer-section a:hover {
+  color: #4f46e5;
+  transform: translateX(5px);
+}
+
+.social-links {
+  display: flex;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.social-links a {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(79, 70, 229, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  transition: all 0.3s ease;
+  color: #4f46e5;
+}
+
+.social-links a:hover {
+  background: #4f46e5;
+  color: white;
+  transform: translateY(-5px);
+}
+
+.footer-bottom {
+  max-width: 1400px;
+  margin: 0 auto;
+  text-align: center;
+  padding-top: 30px;
+  font-size: 0.9rem;
+  color: #cbd5e1;
+}
+
+.footer-links {
+  margin-top: 15px;
+}
+
+.footer-links a {
+  color: #cbd5e1;
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.footer-links a:hover {
+  color: #4f46e5;
+}
+
+.footer-links span {
+  margin: 0 10px;
+  color: #475569;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .footer-container {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+
+  .footer {
+    padding: 40px 20px 15px;
+    margin-top: 50px;
+  }
+
+  .footer-section h3 {
+    font-size: 1rem;
+  }
+}
