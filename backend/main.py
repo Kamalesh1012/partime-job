@@ -28,13 +28,13 @@ load_dotenv(_project_root / ".env")
 # Import application settings
 from app.core.config import settings
 
-# Import routers - use short paths that work on both local and Vercel
+# Import routers - use app.routes for consistency and Vercel compatibility
 from app.routes import auth
 from app.routes import applications
 from app.routes import profiles
 from app.routes import notifications
-from routes import jobs
-from routes import admin
+from app.routes import jobs
+from app.routes import admin
 
 
 # Lifespan context
