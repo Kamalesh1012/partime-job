@@ -5,7 +5,7 @@
 # Redirect API calls to the Vercel backend (set this to your deployed Vercel URL)
 [[redirects]]
   from = "/api/*"
-  to = "https://your-vercel-backend-url.com/api/:splat"
+  to = "https://partime-job.vercel.app/api/:splat"
   status = 200
   force = true
 
