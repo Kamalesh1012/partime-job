@@ -289,15 +289,14 @@ const LoginPage = () => {
           {/* Sign Up */}
           <p className="signup-link">
             Don't have an account?{' '}
-
             <a
-              href="/"
+              href="/register"
               onClick={(e) => {
                 e.preventDefault();
-                navigate('/');
+                navigate('/register');
               }}
             >
-              Sign up here
+              Create account
             </a>
           </p>
 

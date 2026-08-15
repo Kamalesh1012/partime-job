@@ -1,10 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
 import './App.css';
 
 // Pages
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import StudentDashboard from './pages/StudentDashboard';
 import EmployerDashboard from './pages/EmployerDashboard';
 import JobDetailsPage from './pages/JobDetailsPage';
@@ -18,22 +18,21 @@ import Footer from './components/Footer';
 // Theme
 import { useTheme } from './hooks/useTheme';
 
+// Auth store — single source of truth
+import { useAuthStore } from './store';
+
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userType, setUserType] = useState(null);
+  const token = useAuthStore((state) => state.token);
+  const userType = useAuthStore((state) => state.userType);
+  const setUserType = useAuthStore((state) => state.setUserType);
   const { isDarkMode, toggleTheme } = useTheme();
 
-  useEffect(() => {
-    // Check if user is logged in
-    const token = localStorage.getItem('token');
-    const storedUserType = localStorage.getItem('userType');
-    if (token) {
-      setIsLoggedIn(true);
-      setUserType(storedUserType);
-    }
-  }, []);
+  const isLoggedIn = !!token;
 
-  // Protected route wrapper to keep Routes children pure Route elements
+  // Helper: set login state from child pages
+  const setIsLoggedIn = () => {}; // no-op, store handles it
+
+  // Protected route
   const PrivateRoute = ({ children, role }) => {
     if (!isLoggedIn) return <Navigate to="/login" replace />;
     if (role && userType !== role) return <Navigate to="/" replace />;
@@ -54,6 +53,7 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage setIsLoggedIn={setIsLoggedIn} setUserType={setUserType} />} />
+          <Route path="/register" element={<RegisterPage />} />
           <Route path="/jobs/:id" element={<JobDetailsPage />} />
           <Route path="/profile" element={<ProfilePage userType={userType} />} />
 
@@ -87,8 +87,8 @@ function App() {
             }
           />
 
-          {/* Catch-all fallback */}
-          <Route path="*" element={<HomePage />} />
+          {/* Catch-all */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 
         <Footer />
