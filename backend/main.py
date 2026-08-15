@@ -56,6 +56,7 @@ frontend_url = (
 origins = [
     "http://localhost:5173",
     "http://localhost:3000",
+    "https://bucolic-sunflower-10231c.netlify.app",
     frontend_url,
 ]
 
