@@ -1,5 +1,5 @@
-import { supabase } from './supabaseClient';
 import axios from 'axios';
+import { supabase } from './supabaseClient';
 
 // ============================================
 // API BASE URL
@@ -10,300 +10,168 @@ const apiBase =
   import.meta.env.VITE_API_URL ||
   '';
 
+// ============================================
+// DIRECT BACKEND LOGIN (no Supabase JS needed)
+// ============================================
+
+export async function loginWithBackend(email, password, role = 'student') {
+  if (!apiBase) {
+    throw new Error('VITE_API_BASE_URL is not configured.');
+  }
+  try {
+    const response = await axios.post(
+      `${apiBase}/auth/login`,
+      { email: email.trim(), password, role },
+      { withCredentials: true }
+    );
+    const data = response.data;
+    if (!data?.access_token) {
+      throw new Error('No access token returned from backend.');
+    }
+    return data;
+  } catch (err) {
+    if (err?.response?.data?.detail) throw new Error(err.response.data.detail);
+    if (err?.response?.data?.message) throw new Error(err.response.data.message);
+    throw err;
+  }
+}
 
 // ============================================
-// GOOGLE LOGIN
+// DIRECT BACKEND REGISTER
+// ============================================
+
+export async function registerWithBackend(email, password, role = 'student', fullName = '') {
+  if (!apiBase) {
+    throw new Error('VITE_API_BASE_URL is not configured.');
+  }
+  try {
+    const response = await axios.post(
+      `${apiBase}/auth/register`,
+      { email: email.trim(), password, role, full_name: fullName },
+      { withCredentials: true }
+    );
+    return response.data;
+  } catch (err) {
+    if (err?.response?.data?.detail) throw new Error(err.response.data.detail);
+    if (err?.response?.data?.message) throw new Error(err.response.data.message);
+    throw err;
+  }
+}
+
+// ============================================
+// GET CURRENT USER FROM BACKEND
+// ============================================
+
+export async function fetchCurrentUser(token) {
+  if (!apiBase || !token) return null;
+  try {
+    const res = await axios.get(`${apiBase}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return res.data;
+  } catch {
+    return null;
+  }
+}
+
+// ============================================
+// GOOGLE LOGIN (Supabase OAuth)
 // ============================================
 
 export async function signInWithGoogle() {
-  if (!supabase) {
-    throw new Error('Supabase is not configured.');
-  }
-
+  if (!supabase) throw new Error('Supabase is not configured.');
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: {
-      redirectTo: `${window.location.origin}/login`,
-    },
+    options: { redirectTo: `${window.location.origin}/login` },
   });
-
-  if (error) {
-    throw error;
-  }
-
+  if (error) throw error;
   return data;
 }
 
-
 // ============================================
-// EMAIL + PASSWORD LOGIN
+// EMAIL + PASSWORD (Supabase JS — kept for OAuth flow)
 // ============================================
 
 export async function signInWithEmail(email, password) {
-  if (!supabase) {
-    throw new Error('Supabase is not configured.');
-  }
-
-  if (!email || !password) {
-    throw new Error('Email and password are required.');
-  }
-
+  if (!supabase) throw new Error('Supabase is not configured.');
   const { data, error } = await supabase.auth.signInWithPassword({
     email: email.trim(),
     password,
   });
-
-  if (error) {
-    throw error;
-  }
-
-  const accessToken = data?.session?.access_token;
-
-  if (!accessToken) {
-    throw new Error(
-      'Supabase login succeeded, but no access token was returned.'
-    );
-  }
-
-  // Send Supabase token to backend
-  return exchangeTokenWithBackend(accessToken);
-}
-
-
-// ============================================
-// REGISTER WITH EMAIL + PASSWORD
-// ============================================
-
-export async function signUpWithEmail(email, password, userData = {}) {
-  if (!supabase) {
-    throw new Error('Supabase is not configured.');
-  }
-
-  if (!email || !password) {
-    throw new Error('Email and password are required.');
-  }
-
-  const { data, error } = await supabase.auth.signUp({
-    email: email.trim(),
-    password,
-    options: {
-      data: userData,
-    },
-  });
-
-  if (error) {
-    throw error;
-  }
-
+  if (error) throw error;
   return data;
 }
 
+export async function signUpWithEmail(email, password, userData = {}) {
+  if (!supabase) throw new Error('Supabase is not configured.');
+  const { data, error } = await supabase.auth.signUp({
+    email: email.trim(),
+    password,
+    options: { data: userData },
+  });
+  if (error) throw error;
+  return data;
+}
 
 // ============================================
 // EXCHANGE SUPABASE TOKEN WITH BACKEND
 // ============================================
 
 export async function exchangeTokenWithBackend(accessToken) {
-  if (!apiBase) {
-    throw new Error(
-      'VITE_API_BASE_URL is not configured. Please add it to Netlify environment variables.'
-    );
-  }
-
-  if (!accessToken) {
-    throw new Error('Supabase access token is missing.');
-  }
+  if (!apiBase) throw new Error('VITE_API_BASE_URL is not configured.');
+  if (!accessToken) throw new Error('Supabase access token is missing.');
 
   try {
     const response = await axios.post(
       `${apiBase}/auth/supabase-login`,
-      {
-        access_token: accessToken,
-      },
-      {
-        withCredentials: true,
-      }
+      { access_token: accessToken },
+      { withCredentials: true }
     );
-
     const appToken = response.data?.access_token;
-
-    if (!appToken) {
-      throw new Error(
-        'Login succeeded with Supabase, but the backend did not return an application token.'
-      );
-    }
-
-    // Get current user from backend
-    let me = null;
-
-    try {
-      const userResponse = await axios.get(
-        `${apiBase}/auth/me`,
-        {
-          headers: {
-            Authorization: `Bearer ${appToken}`,
-          },
-        }
-      );
-
-      me = userResponse.data;
-    } catch (error) {
-      console.warn(
-        'Backend login succeeded, but /auth/me failed:',
-        error
-      );
-    }
-
-    return {
-      auth: response.data,
-      me,
-    };
+    if (!appToken) throw new Error('Backend did not return an application token.');
+    const me = await fetchCurrentUser(appToken);
+    return { auth: response.data, me };
   } catch (error) {
-    console.error('Backend authentication error:', error);
-
-    if (error?.response?.data?.detail) {
-      throw new Error(error.response.data.detail);
-    }
-
-    if (error?.response?.data?.message) {
-      throw new Error(error.response.data.message);
-    }
-
+    if (error?.response?.data?.detail) throw new Error(error.response.data.detail);
     throw error;
   }
 }
-
 
 // ============================================
 // HANDLE GOOGLE OAUTH REDIRECT
 // ============================================
 
 export async function handlePostSignIn() {
-  if (!supabase) {
-    return null;
-  }
-
+  if (!supabase) return null;
   try {
     const { data, error } = await supabase.auth.getSession();
-
-    if (error) {
-      throw error;
-    }
-
+    if (error) throw error;
     const session = data?.session;
-
-    // No active Supabase session
-    if (!session?.access_token) {
-      return null;
-    }
-
-    return await exchangeTokenWithBackend(
-      session.access_token
-    );
+    if (!session?.access_token) return null;
+    return await exchangeTokenWithBackend(session.access_token);
   } catch (error) {
-    console.error(
-      'Post sign-in authentication error:',
-      error
-    );
-
     throw error;
   }
 }
-
-
-// ============================================
-// GET CURRENT SUPABASE SESSION
-// ============================================
-
-export async function getCurrentSession() {
-  if (!supabase) {
-    return null;
-  }
-
-  const { data, error } = await supabase.auth.getSession();
-
-  if (error) {
-    throw error;
-  }
-
-  return data?.session || null;
-}
-
-
-// ============================================
-// GET CURRENT SUPABASE USER
-// ============================================
-
-export async function getCurrentUser() {
-  if (!supabase) {
-    return null;
-  }
-
-  const { data, error } = await supabase.auth.getUser();
-
-  if (error) {
-    return null;
-  }
-
-  return data?.user || null;
-}
-
 
 // ============================================
 // LOGOUT
 // ============================================
 
 export async function logout() {
-  // Logout from Supabase
   try {
-    if (supabase) {
-      const { error } = await supabase.auth.signOut();
-
-      if (error) {
-        console.warn(
-          'Supabase logout error:',
-          error
-        );
-      }
-    }
-  } catch (error) {
-    console.warn(
-      'Supabase logout exception:',
-      error
-    );
-  }
-
-  // Logout from backend
+    if (supabase) await supabase.auth.signOut();
+  } catch {}
   if (apiBase) {
     try {
-      await axios.post(
-        `${apiBase}/auth/logout`,
-        {},
-        {
-          withCredentials: true,
-        }
-      );
-    } catch (error) {
-      console.warn(
-        'Backend logout error:',
-        error
-      );
-    }
+      await axios.post(`${apiBase}/auth/logout`, {}, { withCredentials: true });
+    } catch {}
   }
-
-  // Clear local authentication data
   localStorage.removeItem('token');
-
-  localStorage.removeItem('access_token');
-
-  sessionStorage.removeItem('token');
-
-  sessionStorage.removeItem('access_token');
-
-  // Redirect to login
+  localStorage.removeItem('userType');
+  sessionStorage.clear();
   window.location.href = '/login';
 }
-
 
 // ============================================
 // AUTH STATE LISTENER
@@ -311,16 +179,7 @@ export async function logout() {
 
 export function onAuthStateChange(callback) {
   if (!supabase) {
-    return {
-      data: {
-        subscription: {
-          unsubscribe: () => {},
-        },
-      },
-    };
+    return { data: { subscription: { unsubscribe: () => {} } } };
   }
-
-  return supabase.auth.onAuthStateChange(
-    callback
-  );
+  return supabase.auth.onAuthStateChange(callback);
 }

@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store';
 import './LoginPage.css';
 import {
+  loginWithBackend,
   signInWithGoogle,
-  signInWithEmail,
   handlePostSignIn,
+  fetchCurrentUser,
 } from '../services/auth';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-
   const setUser = useAuthStore((state) => state.setUser);
   const setToken = useAuthStore((state) => state.setToken);
   const setUserType = useAuthStore((state) => state.setUserType);
@@ -24,106 +24,61 @@ const LoginPage = () => {
   // Handle OAuth redirect / existing Supabase session
   useEffect(() => {
     const checkExistingSession = async () => {
-      setLoading(true);
-
       try {
         const result = await handlePostSignIn();
-
         if (result?.auth?.access_token) {
           const appToken = result.auth.access_token;
-
           setToken(appToken);
-
           if (result.me) {
             setUser(result.me);
             setUserType(result.me.role || 'student');
-
-            if (result.me.role === 'employer') {
-              navigate('/employer-dashboard');
-            } else if (result.me.role === 'admin') {
-              navigate('/admin-dashboard');
-            } else {
-              navigate('/student-dashboard');
-            }
+            redirectByRole(result.me.role);
           } else {
             navigate('/student-dashboard');
           }
         }
       } catch (err) {
-        // No existing OAuth session is normal.
-        console.log('No existing session:', err?.message);
-      } finally {
-        setLoading(false);
+        // No existing OAuth session — normal
       }
     };
-
     checkExistingSession();
-  }, [navigate, setToken, setUser, setUserType]);
+  }, []);
 
-  // Email + password login
+  const redirectByRole = (role) => {
+    if (role === 'employer') navigate('/employer-dashboard');
+    else if (role === 'admin') navigate('/admin-dashboard');
+    else navigate('/student-dashboard');
+  };
+
+  // Email + password login via backend directly
   const handleEmailLogin = async (e) => {
     e.preventDefault();
-
     setError('');
     setLoading(true);
 
     try {
-      if (!email.trim()) {
-        throw new Error('Please enter your email address.');
-      }
+      if (!email.trim()) throw new Error('Please enter your email address.');
+      if (!password) throw new Error('Please enter your password.');
 
-      if (!password) {
-        throw new Error('Please enter your password.');
-      }
+      // Call backend login endpoint directly (no Supabase JS needed)
+      const data = await loginWithBackend(email.trim(), password, selectedRole);
 
-      // Login to Supabase
-      await signInWithEmail(email.trim(), password);
-
-      // Exchange Supabase session for WorkMate backend token
-      const result = await handlePostSignIn();
-
-      if (!result?.auth?.access_token) {
-        throw new Error(
-          'Login succeeded with Supabase, but the backend did not return an application token.'
-        );
-      }
-
-      const appToken = result.auth.access_token;
-
+      const appToken = data.access_token;
       setToken(appToken);
 
-      // Save user information
-      if (result.me) {
-        setUser(result.me);
-
-        const role = result.me.role || selectedRole;
-
-        setUserType(role);
-
-        // Redirect according to actual backend role
-        if (role === 'employer') {
-          navigate('/employer-dashboard');
-        } else if (role === 'admin') {
-          navigate('/admin-dashboard');
-        } else {
-          navigate('/student-dashboard');
-        }
+      // Get user profile
+      const me = await fetchCurrentUser(appToken);
+      if (me) {
+        setUser(me);
+        setUserType(me.role || data.role || selectedRole);
+        redirectByRole(me.role || data.role || selectedRole);
       } else {
-        setUserType(selectedRole);
-
-        if (selectedRole === 'employer') {
-          navigate('/employer-dashboard');
-        } else {
-          navigate('/student-dashboard');
-        }
+        setUserType(data.role || selectedRole);
+        redirectByRole(data.role || selectedRole);
       }
     } catch (err) {
-      console.error('Email login error:', err);
-
-      setError(
-        err?.message ||
-          'Login failed. Please check your email and password.'
-      );
+      console.error('Login error:', err);
+      setError(err?.message || 'Login failed. Please check your email and password.');
     } finally {
       setLoading(false);
     }
@@ -133,14 +88,10 @@ const LoginPage = () => {
   const handleGoogleLogin = async () => {
     setError('');
     setLoading(true);
-
     try {
       await signInWithGoogle();
     } catch (err) {
-      console.error('Google login error:', err);
-
       setError(err?.message || 'Google sign-in failed.');
-
       setLoading(false);
     }
   };
@@ -152,31 +103,12 @@ const LoginPage = () => {
         {/* Left Side */}
         <div className="login-info">
           <h1>Welcome to WorkMate</h1>
-
-          <p>
-            Find your perfect part-time job in Chennai
-          </p>
-
+          <p>Find your perfect part-time job in Chennai</p>
           <div className="login-features">
-            <div className="feature">
-              <span className="icon">✓</span>
-              <span>Verified part-time opportunities</span>
-            </div>
-
-            <div className="feature">
-              <span className="icon">✓</span>
-              <span>Weekend and freelance jobs</span>
-            </div>
-
-            <div className="feature">
-              <span className="icon">✓</span>
-              <span>Easy application process</span>
-            </div>
-
-            <div className="feature">
-              <span className="icon">✓</span>
-              <span>Real-time notifications</span>
-            </div>
+            <div className="feature"><span className="icon">✓</span><span>Verified part-time opportunities</span></div>
+            <div className="feature"><span className="icon">✓</span><span>Weekend and freelance jobs</span></div>
+            <div className="feature"><span className="icon">✓</span><span>Easy application process</span></div>
+            <div className="feature"><span className="icon">✓</span><span>Real-time notifications</span></div>
           </div>
         </div>
 
@@ -185,66 +117,36 @@ const LoginPage = () => {
 
           {/* Role Selection */}
           <div className="role-selector">
-
             <label>
-              <input
-                type="radio"
-                name="role"
-                value="student"
+              <input type="radio" name="role" value="student"
                 checked={selectedRole === 'student'}
                 onChange={(e) => setSelectedRole(e.target.value)}
-                disabled={loading}
-              />
-
+                disabled={loading} />
               👨‍🎓 Student / Job Seeker
             </label>
-
             <label>
-              <input
-                type="radio"
-                name="role"
-                value="employer"
+              <input type="radio" name="role" value="employer"
                 checked={selectedRole === 'employer'}
                 onChange={(e) => setSelectedRole(e.target.value)}
-                disabled={loading}
-              />
-
+                disabled={loading} />
               💼 Employer
             </label>
-
           </div>
 
           {/* Google Login */}
-          <button
-            type="button"
-            className="google-btn"
-            onClick={handleGoogleLogin}
-            disabled={loading}
-          >
-            {loading
-              ? 'Loading...'
-              : '🔐 Sign in with Google'}
+          <button type="button" className="google-btn" onClick={handleGoogleLogin} disabled={loading}>
+            {loading ? 'Loading...' : '🔐 Sign in with Google'}
           </button>
 
-          <div className="divider">
-            OR
-          </div>
+          <div className="divider">OR</div>
 
           {/* Error */}
-          {error && (
-            <div className="error-message">
-              {error}
-            </div>
-          )}
+          {error && <div className="error-message">{error}</div>}
 
           {/* Email Login */}
           <form onSubmit={handleEmailLogin}>
-
             <div className="form-group">
-              <label htmlFor="email">
-                Email
-              </label>
-
+              <label htmlFor="email">Email</label>
               <input
                 id="email"
                 type="email"
@@ -258,10 +160,7 @@ const LoginPage = () => {
             </div>
 
             <div className="form-group">
-              <label htmlFor="password">
-                Password
-              </label>
-
+              <label htmlFor="password">Password</label>
               <input
                 id="password"
                 type="password"
@@ -274,32 +173,18 @@ const LoginPage = () => {
               />
             </div>
 
-            <button
-              type="submit"
-              className="submit-btn"
-              disabled={loading}
-            >
-              {loading
-                ? 'Signing in...'
-                : 'Sign In'}
+            <button type="submit" className="submit-btn" disabled={loading}>
+              {loading ? 'Signing in...' : 'Sign In'}
             </button>
-
           </form>
 
           {/* Sign Up */}
           <p className="signup-link">
             Don't have an account?{' '}
-            <a
-              href="/register"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate('/register');
-              }}
-            >
+            <a href="/register" onClick={(e) => { e.preventDefault(); navigate('/register'); }}>
               Create account
             </a>
           </p>
-
         </div>
       </div>
     </div>

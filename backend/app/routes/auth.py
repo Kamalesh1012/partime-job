@@ -862,3 +862,250 @@ async def me(
             "profile_picture"
         ),
     }
+
+
+# ============================================================
+# Direct Email/Password Login (via Supabase Auth REST API)
+# ============================================================
+
+class EmailLoginIn(BaseModel):
+    email: str
+    password: str
+    role: str = "student"
+
+
+class RegisterIn(BaseModel):
+    email: str
+    password: str
+    role: str = "student"
+    full_name: str = ""
+
+
+@router.post("/login")
+async def email_login(
+    payload: EmailLoginIn,
+    response: Response,
+):
+    """
+    Login with email + password directly.
+    Calls Supabase Auth REST API to authenticate,
+    then issues a local JWT — no Supabase JS client required.
+    """
+    supabase_url = get_supabase_url()
+    anon_key = (
+        os.getenv("SUPABASE_ANON_KEY")
+        or getattr(settings, "SUPABASE_ANON_KEY", None)
+        or getattr(settings, "SUPABASE_KEY", None)
+    )
+
+    # Authenticate with Supabase
+    auth_url = f"{supabase_url}/auth/v1/token?grant_type=password"
+    headers = {
+        "apikey": anon_key,
+        "Content-Type": "application/json",
+    }
+    auth_payload = {
+        "email": payload.email.strip(),
+        "password": payload.password,
+    }
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(auth_url, headers=headers, json=auth_payload)
+
+    if resp.status_code != 200:
+        data = resp.json()
+        detail = data.get("error_description") or data.get("message") or data.get("error") or "Invalid credentials"
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=detail,
+        )
+
+    supabase_data = resp.json()
+    access_token = supabase_data.get("access_token")
+    sb_user = supabase_data.get("user", {})
+    email = sb_user.get("email") or payload.email
+
+    # Now exchange with backend (upsert user record and issue local JWT)
+    service_key = get_supabase_service_role_key()
+    rest_url = f"{supabase_url}/rest/v1/users"
+    headers_admin = {
+        "apikey": service_key,
+        "Authorization": f"Bearer {service_key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+    }
+
+    async with httpx.AsyncClient() as client:
+        check = await client.get(
+            rest_url,
+            headers=headers_admin,
+            params={"select": "*", "email": f"eq.{email}"},
+        )
+        users = check.json() if check.status_code in (200, 206) else []
+
+        if users:
+            user_row = users[0]
+        else:
+            metadata = sb_user.get("user_metadata", {}) or {}
+            row = {
+                "email": email,
+                "full_name": metadata.get("full_name") or payload.full_name if hasattr(payload, "full_name") else "",
+                "user_type": payload.role,
+            }
+            cr = await client.post(rest_url, headers=headers_admin, json=row)
+            if cr.status_code not in (200, 201):
+                raise HTTPException(status_code=500, detail="Failed to create user record")
+            created = cr.json()
+            user_row = created[0] if isinstance(created, list) else created
+
+    token_data = {
+        "sub": str(user_row.get("id")),
+        "email": email,
+        "role": user_row.get("user_type", payload.role),
+    }
+    local_token = create_access_token(token_data)
+
+    # Refresh token
+    try:
+        refresh_plain, _ = await create_refresh_token(str(user_row.get("id")))
+        cookie_opts = cookie_options()
+        response.set_cookie(
+            "refresh_token", refresh_plain,
+            httponly=cookie_opts["httponly"],
+            secure=cookie_opts["secure"],
+            samesite=cookie_opts["samesite"],
+            path=cookie_opts["path"],
+            max_age=cookie_opts["max_age"],
+        )
+    except Exception:
+        pass  # Refresh token optional — don't block login
+
+    return {
+        "access_token": local_token,
+        "token_type": "bearer",
+        "role": user_row.get("user_type", payload.role),
+        "email": email,
+    }
+
+
+@router.post("/register")
+async def register_user(
+    payload: RegisterIn,
+    response: Response,
+):
+    """
+    Register a new user with email + password.
+    Creates Supabase Auth user + custom users table record.
+    Returns access token immediately (no email confirmation wait).
+    """
+    supabase_url = get_supabase_url()
+    anon_key = (
+        os.getenv("SUPABASE_ANON_KEY")
+        or getattr(settings, "SUPABASE_ANON_KEY", None)
+        or getattr(settings, "SUPABASE_KEY", None)
+    )
+
+    # Try to sign up via Supabase
+    signup_url = f"{supabase_url}/auth/v1/signup"
+    headers = {
+        "apikey": anon_key,
+        "Content-Type": "application/json",
+    }
+    signup_payload = {
+        "email": payload.email.strip(),
+        "password": payload.password,
+        "data": {
+            "role": payload.role,
+            "user_type": payload.role,
+            "full_name": payload.full_name,
+        },
+    }
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(signup_url, headers=headers, json=signup_payload)
+
+    resp_data = resp.json()
+
+    if resp.status_code not in (200, 201):
+        detail = (
+            resp_data.get("error_description")
+            or resp_data.get("message")
+            or resp_data.get("error")
+            or "Registration failed"
+        )
+        raise HTTPException(status_code=400, detail=detail)
+
+    # If email confirmation required, still create users table record
+    # and return a token so user can use the app
+    sb_user = resp_data.get("user") or resp_data
+    sb_session = resp_data.get("session") or {}
+    email = sb_user.get("email") or payload.email.strip()
+
+    service_key = get_supabase_service_role_key()
+    rest_url = f"{supabase_url}/rest/v1/users"
+    headers_admin = {
+        "apikey": service_key,
+        "Authorization": f"Bearer {service_key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+    }
+
+    async with httpx.AsyncClient() as client:
+        # Check if user already in users table
+        check = await client.get(
+            rest_url,
+            headers=headers_admin,
+            params={"select": "*", "email": f"eq.{email}"},
+        )
+        existing = check.json() if check.status_code in (200, 206) else []
+
+        if existing:
+            user_row = existing[0]
+        else:
+            row = {
+                "email": email,
+                "full_name": payload.full_name or "",
+                "user_type": payload.role,
+            }
+            cr = await client.post(rest_url, headers=headers_admin, json=row)
+            if cr.status_code not in (200, 201):
+                raise HTTPException(status_code=500, detail="User auth created but profile failed")
+            created = cr.json()
+            user_row = created[0] if isinstance(created, list) else created
+
+    token_data = {
+        "sub": str(user_row.get("id")),
+        "email": email,
+        "role": payload.role,
+    }
+    local_token = create_access_token(token_data)
+
+    # Refresh token
+    try:
+        refresh_plain, _ = await create_refresh_token(str(user_row.get("id")))
+        cookie_opts = cookie_options()
+        response.set_cookie(
+            "refresh_token", refresh_plain,
+            httponly=cookie_opts["httponly"],
+            secure=cookie_opts["secure"],
+            samesite=cookie_opts["samesite"],
+            path=cookie_opts["path"],
+            max_age=cookie_opts["max_age"],
+        )
+    except Exception:
+        pass
+
+    needs_confirm = not sb_session.get("access_token")
+
+    return {
+        "access_token": local_token,
+        "token_type": "bearer",
+        "role": payload.role,
+        "email": email,
+        "needs_email_confirmation": needs_confirm,
+        "message": (
+            "Registration successful! Please check your email to confirm your account. You can use the app now."
+            if needs_confirm
+            else "Registration successful!"
+        ),
+    }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store';
-import { signUpWithEmail, signInWithEmail, exchangeTokenWithBackend } from '../services/auth';
+import { registerWithBackend, fetchCurrentUser } from '../services/auth';
 import './LoginPage.css';
 
 const RegisterPage = () => {
@@ -13,6 +13,7 @@ const RegisterPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [selectedRole, setSelectedRole] = useState('student');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -30,43 +31,29 @@ const RegisterPage = () => {
       if (password.length < 6) throw new Error('Password must be at least 6 characters.');
       if (password !== confirmPassword) throw new Error('Passwords do not match.');
 
-      // Register with Supabase
-      const data = await signUpWithEmail(email.trim(), password, {
-        user_type: selectedRole,
-        role: selectedRole,
-      });
+      // Register via backend (handles Supabase + users table in one step)
+      const data = await registerWithBackend(email.trim(), password, selectedRole, fullName.trim());
 
-      // If Supabase requires email confirmation
-      if (data?.user && !data?.session) {
-        setSuccess(
-          'Registration successful! Please check your email to confirm your account, then come back to login.'
-        );
-        setLoading(false);
-        return;
-      }
+      // Backend returns a token immediately — log user in now
+      if (data?.access_token) {
+        setToken(data.access_token);
+        const me = await fetchCurrentUser(data.access_token);
+        if (me) {
+          setUser(me);
+          setUserType(me.role || selectedRole);
+        } else {
+          setUserType(data.role || selectedRole);
+        }
 
-      // If session exists (email confirmation disabled), log in immediately
-      if (data?.session?.access_token) {
-        try {
-          const result = await exchangeTokenWithBackend(data.session.access_token);
-          if (result?.auth?.access_token) {
-            setToken(result.auth.access_token);
-            if (result.me) {
-              setUser(result.me);
-              setUserType(result.me.role || selectedRole);
-            } else {
-              setUserType(selectedRole);
-            }
+        if (data.needs_email_confirmation) {
+          setSuccess('Account created! Please check your email to confirm. Redirecting to dashboard…');
+          setTimeout(() => {
             navigate(selectedRole === 'employer' ? '/employer-dashboard' : '/student-dashboard');
-            return;
-          }
-        } catch (backendErr) {
-          console.warn('Backend token exchange failed after registration:', backendErr);
+          }, 2000);
+        } else {
+          navigate(selectedRole === 'employer' ? '/employer-dashboard' : '/student-dashboard');
         }
       }
-
-      setSuccess('Registration successful! Please login with your credentials.');
-      setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
       console.error('Registration error:', err);
       setError(err?.message || 'Registration failed. Please try again.');
@@ -84,22 +71,10 @@ const RegisterPage = () => {
           <h1>Join WorkMate</h1>
           <p>Create your free account and start finding part-time jobs in Chennai.</p>
           <div className="login-features">
-            <div className="feature">
-              <span className="icon">✓</span>
-              <span>Free to register</span>
-            </div>
-            <div className="feature">
-              <span className="icon">✓</span>
-              <span>Verified job listings</span>
-            </div>
-            <div className="feature">
-              <span className="icon">✓</span>
-              <span>Direct employer contact</span>
-            </div>
-            <div className="feature">
-              <span className="icon">✓</span>
-              <span>Real-time notifications</span>
-            </div>
+            <div className="feature"><span className="icon">✓</span><span>Free to register</span></div>
+            <div className="feature"><span className="icon">✓</span><span>Verified job listings</span></div>
+            <div className="feature"><span className="icon">✓</span><span>Direct employer contact</span></div>
+            <div className="feature"><span className="icon">✓</span><span>Real-time notifications</span></div>
           </div>
         </div>
 
@@ -110,25 +85,17 @@ const RegisterPage = () => {
           {/* Role Selection */}
           <div className="role-selector">
             <label>
-              <input
-                type="radio"
-                name="role"
-                value="student"
+              <input type="radio" name="role" value="student"
                 checked={selectedRole === 'student'}
                 onChange={(e) => setSelectedRole(e.target.value)}
-                disabled={loading}
-              />
+                disabled={loading} />
               👨‍🎓 Student / Job Seeker
             </label>
             <label>
-              <input
-                type="radio"
-                name="role"
-                value="employer"
+              <input type="radio" name="role" value="employer"
                 checked={selectedRole === 'employer'}
                 onChange={(e) => setSelectedRole(e.target.value)}
-                disabled={loading}
-              />
+                disabled={loading} />
               💼 Employer
             </label>
           </div>
@@ -143,6 +110,18 @@ const RegisterPage = () => {
 
           {/* Register Form */}
           <form onSubmit={handleRegister}>
+            <div className="form-group">
+              <label htmlFor="reg-name">Full Name</label>
+              <input
+                id="reg-name"
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Your full name"
+                disabled={loading}
+              />
+            </div>
+
             <div className="form-group">
               <label htmlFor="reg-email">Email</label>
               <input
@@ -192,13 +171,7 @@ const RegisterPage = () => {
 
           <p className="signup-link">
             Already have an account?{' '}
-            <a
-              href="/login"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate('/login');
-              }}
-            >
+            <a href="/login" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>
               Sign in here
             </a>
           </p>
