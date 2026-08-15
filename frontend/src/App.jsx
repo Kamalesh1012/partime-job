@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useAuthStore } from './store';
 import './App.css';
 
 // Pages
@@ -19,19 +19,10 @@ import Footer from './components/Footer';
 import { useTheme } from './hooks/useTheme';
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userType, setUserType] = useState(null);
+  const token = useAuthStore((state) => state.token);
+  const userType = useAuthStore((state) => state.userType);
+  const isLoggedIn = Boolean(token);
   const { isDarkMode, toggleTheme } = useTheme();
-
-  useEffect(() => {
-    // Check if user is logged in
-    const token = localStorage.getItem('token');
-    const storedUserType = localStorage.getItem('userType');
-    if (token) {
-      setIsLoggedIn(true);
-      setUserType(storedUserType);
-    }
-  }, []);
 
   // Protected route wrapper to keep Routes children pure Route elements
   const PrivateRoute = ({ children, role }) => {
@@ -45,7 +36,6 @@ function App() {
       <div className={isDarkMode ? 'dark' : 'light'}>
         <Navbar
           isLoggedIn={isLoggedIn}
-          setIsLoggedIn={setIsLoggedIn}
           userType={userType}
           isDarkMode={isDarkMode}
           toggleTheme={toggleTheme}
@@ -53,7 +43,7 @@ function App() {
 
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/login" element={<LoginPage setIsLoggedIn={setIsLoggedIn} setUserType={setUserType} />} />
+          <Route path="/login" element={<LoginPage />} />
           <Route path="/jobs/:id" element={<JobDetailsPage />} />
           <Route path="/profile" element={<ProfilePage userType={userType} />} />
 
