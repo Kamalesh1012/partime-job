@@ -2,7 +2,9 @@
 WorkMate Chennai - Job Portal API
 Main FastAPI application
 """
-
+import sys
+import os
+from pathlib import Path
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -10,22 +12,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from dotenv import load_dotenv
 
+# Ensure the project root AND backend dir are on sys.path
+# so imports work both locally (from project root) and on Vercel (from /var/task/)
+_this_dir = Path(__file__).resolve().parent  # backend/
+_project_root = _this_dir.parent  # job portal/
+
+for p in [str(_project_root), str(_this_dir)]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
 # Load environment variables
-load_dotenv()
+load_dotenv(_this_dir / ".env")
+load_dotenv(_project_root / ".env")
 
 # Import application settings
-from backend.app.core.config import settings
+from app.core.config import settings
 
-# Import routers using the full backend package path
-# Uses the fully-developed routes from app.routes (with Supabase auth, JWT, etc.)
-from backend.app.routes import auth
-from backend.app.routes import applications
-from backend.app.routes import profiles
-from backend.app.routes import notifications
-
-# These routes are in backend.routes (top-level)
-from backend.routes import jobs
-from backend.routes import admin
+# Import routers - use short paths that work on both local and Vercel
+from app.routes import auth
+from app.routes import applications
+from app.routes import profiles
+from app.routes import notifications
+from routes import jobs
+from routes import admin
 
 
 # Lifespan context
@@ -80,8 +89,7 @@ app.add_middleware(
     allowed_hosts=[
         "localhost",
         "127.0.0.1",
-        "workmate-chennai.netlify.app",
-        "partime-job.vercel.app",
+        "*.netlify.app",
         "*.vercel.app",
     ],
 )
@@ -156,7 +164,7 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(
-        "backend.main:app",
+        "main:app",
         host="0.0.0.0",
         port=8000,
         reload=True,

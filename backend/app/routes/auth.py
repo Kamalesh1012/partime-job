@@ -23,7 +23,7 @@ from jose import jwt
 
 # IMPORTANT:
 # Use the full backend package path so Vercel can import this correctly.
-from backend.app.core.config import settings
+from app.core.config import settings
 
 
 router = APIRouter()

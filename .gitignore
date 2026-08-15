@@ -90,3 +90,4 @@ test_data.json
 # Database backups
 *.sql.bak
 *.dump
+.env*
