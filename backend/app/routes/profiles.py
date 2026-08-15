@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
-from app.core.config import settings
+from backend.app.core.config import settings
 import httpx
 from datetime import datetime
 

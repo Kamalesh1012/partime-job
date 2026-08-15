@@ -4,6 +4,7 @@ python-dotenv
 python-jose
 PyJWT
 supabase
-pydantic
+pydantic[email]
 pydantic-settings
 httpx
+email-validator

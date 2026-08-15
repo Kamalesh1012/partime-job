@@ -3,8 +3,8 @@ Jobs routes
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from models import JobCreate, JobUpdate, JobResponse, JobSearchFilter
-from config import get_db
+from backend.models import JobCreate, JobUpdate, JobResponse, JobSearchFilter
+from backend.config import get_db
 from typing import List
 
 router = APIRouter()

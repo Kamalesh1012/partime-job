@@ -2,10 +2,12 @@
 Pydantic models for request/response validation
 """
 
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List
 from datetime import datetime
 from enum import Enum
+from typing import List, Optional
+
+from pydantic import BaseModel, EmailStr
+
 
 # ==================== Authentication Models ====================
 
@@ -14,9 +16,11 @@ class UserType(str, Enum):
     EMPLOYER = "employer"
     ADMIN = "admin"
 
+
 class GoogleAuthRequest(BaseModel):
     token: str
     user_type: UserType
+
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -24,8 +28,10 @@ class UserBase(BaseModel):
     user_type: UserType
     profile_picture: Optional[str] = None
 
+
 class UserCreate(UserBase):
     pass
+
 
 class UserResponse(UserBase):
     id: str
@@ -34,6 +40,7 @@ class UserResponse(UserBase):
 
     class Config:
         from_attributes = True
+
 
 # ==================== Student Profile Models ====================
 
@@ -54,6 +61,7 @@ class StudentProfileCreate(BaseModel):
     previous_experience: Optional[str] = None
     aadhaar_verification_status: Optional[str] = "not_submitted"
 
+
 class StudentProfileUpdate(BaseModel):
     phone: Optional[str] = None
     location: Optional[str] = None
@@ -71,11 +79,13 @@ class StudentProfileUpdate(BaseModel):
     previous_experience: Optional[str] = None
     aadhaar_verification_status: Optional[str] = None
 
+
 class StudentProfileResponse(StudentProfileCreate):
     id: str
     user_id: str
     created_at: datetime
     updated_at: datetime
+
 
 # ==================== Employer Profile Models ====================
 
@@ -90,6 +100,7 @@ class EmployerProfileCreate(BaseModel):
     industry: str
     is_verified: bool = False
 
+
 class EmployerProfileUpdate(BaseModel):
     company_name: Optional[str] = None
     company_email: Optional[str] = None
@@ -100,11 +111,13 @@ class EmployerProfileUpdate(BaseModel):
     logo_url: Optional[str] = None
     industry: Optional[str] = None
 
+
 class EmployerProfileResponse(EmployerProfileCreate):
     id: str
     user_id: str
     created_at: datetime
     updated_at: datetime
+
 
 # ==================== Job Models ====================
 
@@ -125,6 +138,7 @@ class JobCategory(str, Enum):
     WEEKEND = "weekend"
     FREELANCE = "freelance"
 
+
 class ChennaiLocation(str, Enum):
     OMR = "omr"
     SHOLINGANALLUR = "sholinganallur"
@@ -139,12 +153,14 @@ class ChennaiLocation(str, Enum):
     AMBATTUR = "ambattur"
     MEDAVAKKAM = "medavakkam"
 
+
 class JobType(str, Enum):
     PART_TIME = "part_time"
     WEEKEND = "weekend"
     INTERNSHIP = "internship"
     FREELANCE = "freelance"
     TEMPORARY = "temporary"
+
 
 class JobCreate(BaseModel):
     title: str
@@ -160,6 +176,7 @@ class JobCreate(BaseModel):
     application_deadline: Optional[datetime] = None
     is_active: bool = True
 
+
 class JobUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
@@ -173,12 +190,14 @@ class JobUpdate(BaseModel):
     application_deadline: Optional[datetime] = None
     is_active: Optional[bool] = None
 
+
 class JobResponse(JobCreate):
     id: str
     employer_id: str
     applications_count: int = 0
     created_at: datetime
     updated_at: datetime
+
 
 # ==================== Application Models ====================
 
@@ -188,12 +207,15 @@ class ApplicationStatus(str, Enum):
     REJECTED = "rejected"
     HIRED = "hired"
 
+
 class ApplicationCreate(BaseModel):
     job_id: str
     cover_letter: Optional[str] = None
 
+
 class ApplicationUpdate(BaseModel):
     status: ApplicationStatus
+
 
 class ApplicationResponse(BaseModel):
     id: str
@@ -204,16 +226,19 @@ class ApplicationResponse(BaseModel):
     applied_at: datetime
     updated_at: datetime
 
+
 # ==================== Saved Job Models ====================
 
 class SavedJobCreate(BaseModel):
     job_id: str
+
 
 class SavedJobResponse(BaseModel):
     id: str
     student_id: str
     job_id: str
     saved_at: datetime
+
 
 # ==================== Notification Models ====================
 
@@ -224,6 +249,7 @@ class NotificationType(str, Enum):
     INTERVIEW = "interview"
     GENERAL = "general"
 
+
 class NotificationCreate(BaseModel):
     user_id: str
     notification_type: NotificationType
@@ -232,12 +258,14 @@ class NotificationCreate(BaseModel):
     related_job_id: Optional[str] = None
     related_application_id: Optional[str] = None
 
+
 class NotificationResponse(NotificationCreate):
     id: str
     is_read: bool
     created_at: datetime
 
-# ==================== Search/Filter Models ====================
+
+# ==================== Search / Filter Models ====================
 
 class JobSearchFilter(BaseModel):
     category: Optional[JobCategory] = None

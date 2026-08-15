@@ -1,8 +1,13 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 
-load_dotenv()
+# Load .env from the backend directory (2 levels up from this file)
+_backend_dir = Path(__file__).resolve().parent.parent.parent
+load_dotenv(_backend_dir / ".env")
+# Also try project root .env as fallback
+load_dotenv(_backend_dir.parent / ".env")
 
 class Settings(BaseSettings):
     SUPABASE_URL: str = os.getenv('SUPABASE_URL')

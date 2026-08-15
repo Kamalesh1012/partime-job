@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
-from app.core.config import settings
+from backend.app.core.config import settings
 import httpx
 from datetime import datetime
 

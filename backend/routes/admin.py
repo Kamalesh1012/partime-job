@@ -3,7 +3,7 @@ Admin routes
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from config import get_db
+from backend.config import get_db
 
 router = APIRouter()
 
