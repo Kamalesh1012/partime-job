@@ -1,6 +1,7 @@
 [build]
-  publish = "frontend/dist"
-  command = "npm --prefix frontend run build"
+  base = "frontend"
+  command = "npm ci --include=dev && npm run build"
+  publish = "dist"
 
 # Redirect API calls to the Vercel backend (set this to your deployed Vercel URL)
 [[redirects]]
