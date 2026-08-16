@@ -1,6 +1,18 @@
 """
 WorkMate Chennai - Authentication API
-Supabase authentication + local JWT + refresh-token handling
+
+Authentication flow:
+    Frontend
+        ↓
+    FastAPI
+        ↓
+    Supabase Auth
+        ↓
+    Supabase REST API (users / refresh_tokens)
+        ↓
+    Local application JWT
+        ↓
+    HttpOnly refresh-token cookie
 """
 
 from datetime import datetime, timedelta
@@ -12,17 +24,14 @@ import httpx
 from fastapi import (
     APIRouter,
     HTTPException,
-    Depends,
     Header,
     Response,
     Request,
     status,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from jose import jwt
 
-# IMPORTANT:
-# Use the full backend package path so Vercel can import this correctly.
 from app.core.config import settings
 
 
@@ -30,17 +39,16 @@ router = APIRouter()
 
 
 # ============================================================
-# Configuration helpers
+# CONFIGURATION
 # ============================================================
 
 def get_supabase_url() -> str:
-    """
-    Get Supabase project URL.
+    """Return configured Supabase project URL."""
 
-    Prefer settings.SUPABASE_URL, with environment variable
-    fallback for production deployments.
-    """
-    value = getattr(settings, "SUPABASE_URL", None) or os.getenv("SUPABASE_URL")
+    value = (
+        getattr(settings, "SUPABASE_URL", None)
+        or os.getenv("SUPABASE_URL")
+    )
 
     if not value:
         raise HTTPException(
@@ -51,12 +59,35 @@ def get_supabase_url() -> str:
     return value.rstrip("/")
 
 
+def get_supabase_anon_key() -> str:
+    """
+    Return Supabase anon/publishable key.
+
+    This key is used for Supabase Auth signup/login.
+    """
+
+    value = (
+        os.getenv("SUPABASE_ANON_KEY")
+        or getattr(settings, "SUPABASE_ANON_KEY", None)
+        or os.getenv("SUPABASE_KEY")
+        or getattr(settings, "SUPABASE_KEY", None)
+    )
+
+    if not value:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="SUPABASE_ANON_KEY is not configured",
+        )
+
+    return value
+
+
 def get_supabase_service_role_key() -> str:
     """
-    Get the Supabase service-role/secret key.
+    Return Supabase service-role/secret key.
 
-    SUPABASE_SERVICE_ROLE_KEY is preferred.
-    SUPABASE_KEY is retained as a backwards-compatible fallback.
+    IMPORTANT:
+    This key must NEVER be exposed to the frontend.
     """
 
     value = (
@@ -69,14 +100,14 @@ def get_supabase_service_role_key() -> str:
     if not value:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Supabase service role key is not configured",
+            detail="SUPABASE_SERVICE_ROLE_KEY is not configured",
         )
 
     return value
 
 
 # ============================================================
-# Response / Request models
+# MODELS
 # ============================================================
 
 class TokenOut(BaseModel):
@@ -88,17 +119,78 @@ class SupabaseLoginIn(BaseModel):
     access_token: str
 
 
+class EmailLoginIn(BaseModel):
+    email: EmailStr
+    password: str
+    role: str = "student"
+
+
+class RegisterIn(BaseModel):
+    email: EmailStr
+    password: str
+    role: str = "student"
+    full_name: str = ""
+
+
 # ============================================================
-# JWT helper
+# HTTP HELPERS
+# ============================================================
+
+def supabase_auth_headers() -> dict:
+    """Headers for Supabase Auth API."""
+
+    return {
+        "apikey": get_supabase_anon_key(),
+        "Content-Type": "application/json",
+    }
+
+
+def supabase_admin_headers() -> dict:
+    """
+    Headers for Supabase REST API using service-role key.
+    """
+
+    service_key = get_supabase_service_role_key()
+
+    return {
+        "apikey": service_key,
+        "Authorization": f"Bearer {service_key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+    }
+
+
+def extract_supabase_error(response: httpx.Response) -> str:
+    """
+    Extract a useful error message from Supabase response.
+    """
+
+    try:
+        data = response.json()
+    except Exception:
+        data = {}
+
+    if isinstance(data, dict):
+        return (
+            data.get("error_description")
+            or data.get("msg")
+            or data.get("message")
+            or data.get("error")
+            or f"Supabase returned HTTP {response.status_code}"
+        )
+
+    return f"Supabase returned HTTP {response.status_code}"
+
+
+# ============================================================
+# JWT
 # ============================================================
 
 def create_access_token(
     data: dict,
-    expires_minutes: int = None,
-):
-    """
-    Create local application JWT access token.
-    """
+    expires_minutes: int | None = None,
+) -> str:
+    """Create local application JWT."""
 
     to_encode = data.copy()
 
@@ -109,37 +201,31 @@ def create_access_token(
         )
     )
 
-    to_encode.update({"exp": expire})
+    to_encode["exp"] = expire
 
-    encoded_jwt = jwt.encode(
+    return jwt.encode(
         to_encode,
         settings.SECRET_KEY,
         algorithm=settings.ALGORITHM,
     )
 
-    return encoded_jwt
-
 
 # ============================================================
-# Cookie helper
+# COOKIE
 # ============================================================
 
-def cookie_options():
-    """
-    Return refresh-token cookie options based on environment.
-    """
+def cookie_options() -> dict:
+    """Return refresh-token cookie settings."""
 
-    frontend = getattr(
-        settings,
-        "FRONTEND_URL",
-        "",
-    ) or ""
+    frontend = (
+        getattr(settings, "FRONTEND_URL", "")
+        or ""
+    )
 
-    environment = getattr(
-        settings,
-        "ENVIRONMENT",
-        "",
-    ) or ""
+    environment = (
+        getattr(settings, "ENVIRONMENT", "")
+        or ""
+    )
 
     is_secure = (
         frontend.startswith("https")
@@ -154,38 +240,52 @@ def cookie_options():
         30,
     )
 
-    max_age = int(refresh_days * 24 * 3600)
-
     return {
         "httponly": True,
         "secure": is_secure,
         "samesite": samesite,
         "path": "/",
-        "max_age": max_age,
+        "max_age": int(refresh_days * 24 * 3600),
     }
 
 
+def set_refresh_cookie(
+    response: Response,
+    token: str,
+) -> None:
+    """Set refresh token as HttpOnly cookie."""
+
+    options = cookie_options()
+
+    response.set_cookie(
+        "refresh_token",
+        token,
+        httponly=options["httponly"],
+        secure=options["secure"],
+        samesite=options["samesite"],
+        path=options["path"],
+        max_age=options["max_age"],
+    )
+
+
 # ============================================================
-# Refresh token helpers
+# REFRESH TOKEN HELPERS
 # ============================================================
 
 def hash_token(token: str) -> str:
-    """
-    Hash refresh token before storing it in Supabase.
-    """
+    """Hash refresh token before database storage."""
 
     return hashlib.sha256(
-        token.encode()
+        token.encode("utf-8")
     ).hexdigest()
 
 
-async def create_refresh_token(user_id: str):
-    """
-    Create and store refresh token in Supabase.
-    """
+async def create_refresh_token(
+    user_id: str,
+):
+    """Create and store refresh token."""
 
     token_plain = uuid.uuid4().hex
-
     token_hash = hash_token(token_plain)
 
     refresh_days = getattr(
@@ -200,18 +300,10 @@ async def create_refresh_token(user_id: str):
     ).isoformat()
 
     supabase_url = get_supabase_url()
-    service_key = get_supabase_service_role_key()
 
     rest_url = (
         f"{supabase_url}/rest/v1/refresh_tokens"
     )
-
-    headers_admin = {
-        "apikey": service_key,
-        "Authorization": f"Bearer {service_key}",
-        "Content-Type": "application/json",
-        "Prefer": "return=representation",
-    }
 
     payload = {
         "user_id": user_id,
@@ -220,29 +312,43 @@ async def create_refresh_token(user_id: str):
         "expires_at": expires_at,
     }
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
+    async with httpx.AsyncClient(
+        timeout=20.0
+    ) as client:
+
+        response = await client.post(
             rest_url,
-            headers=headers_admin,
+            headers=supabase_admin_headers(),
             json=payload,
         )
 
-    if resp.status_code not in (201, 200):
+    if response.status_code not in (200, 201):
+        error = extract_supabase_error(response)
+
+        print(
+            "REFRESH TOKEN CREATE ERROR:",
+            response.status_code,
+            error,
+        )
+
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail="Failed to create refresh token",
         )
 
-    created = resp.json()
+    try:
+        data = response.json()
+    except Exception:
+        data = []
 
-    if isinstance(created, list):
+    if isinstance(data, list):
         created_id = (
-            created[0].get("id")
-            if created
+            data[0].get("id")
+            if data
             else None
         )
     else:
-        created_id = created.get("id")
+        created_id = data.get("id")
 
     return token_plain, created_id
 
@@ -250,68 +356,54 @@ async def create_refresh_token(user_id: str):
 async def get_refresh_record_by_token(
     token_plain: str,
 ):
-    """
-    Verify refresh token from cookie
-    and return the database record.
-    """
+    """Find refresh token record."""
 
     token_hash = hash_token(token_plain)
 
     supabase_url = get_supabase_url()
-    service_key = get_supabase_service_role_key()
 
     rest_url = (
         f"{supabase_url}/rest/v1/refresh_tokens"
     )
 
-    headers_admin = {
-        "apikey": service_key,
-        "Authorization": f"Bearer {service_key}",
-        "Content-Type": "application/json",
-    }
+    async with httpx.AsyncClient(
+        timeout=20.0
+    ) as client:
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
+        response = await client.get(
             rest_url,
-            headers=headers_admin,
+            headers=supabase_admin_headers(),
             params={
                 "select": "*",
                 "token_hash": f"eq.{token_hash}",
             },
         )
 
-    if resp.status_code not in (200, 206):
+    if response.status_code not in (200, 206):
         return None
 
-    items = resp.json()
-
-    if not items:
+    try:
+        records = response.json()
+    except Exception:
         return None
 
-    return items[0]
+    if not records:
+        return None
+
+    return records[0]
 
 
 async def revoke_refresh_token(
     token_id: str,
-    replaced_by: str = None,
-):
-    """
-    Revoke refresh token by ID.
-    """
+    replaced_by: str | None = None,
+) -> bool:
+    """Revoke refresh token."""
 
     supabase_url = get_supabase_url()
-    service_key = get_supabase_service_role_key()
 
     rest_url = (
         f"{supabase_url}/rest/v1/refresh_tokens"
     )
-
-    headers_admin = {
-        "apikey": service_key,
-        "Authorization": f"Bearer {service_key}",
-        "Content-Type": "application/json",
-        "Prefer": "return=representation",
-    }
 
     patch = {
         "revoked": True,
@@ -320,21 +412,163 @@ async def revoke_refresh_token(
     if replaced_by:
         patch["replaced_by"] = replaced_by
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.patch(
+    async with httpx.AsyncClient(
+        timeout=20.0
+    ) as client:
+
+        response = await client.patch(
             rest_url,
-            headers=headers_admin,
+            headers=supabase_admin_headers(),
             params={
                 "id": f"eq.{token_id}",
             },
             json=patch,
         )
 
-    return resp.status_code in (200, 204)
+    return response.status_code in (200, 204)
 
 
 # ============================================================
-# Supabase Login
+# USERS TABLE HELPERS
+# ============================================================
+
+async def find_user_by_email(
+    email: str,
+):
+    """Find local user by email."""
+
+    supabase_url = get_supabase_url()
+
+    rest_url = (
+        f"{supabase_url}/rest/v1/users"
+    )
+
+    async with httpx.AsyncClient(
+        timeout=20.0
+    ) as client:
+
+        response = await client.get(
+            rest_url,
+            headers=supabase_admin_headers(),
+            params={
+                "select": "*",
+                "email": f"eq.{email}",
+            },
+        )
+
+    if response.status_code not in (200, 206):
+        error = extract_supabase_error(response)
+
+        print(
+            "FIND USER ERROR:",
+            response.status_code,
+            error,
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to access users table",
+        )
+
+    try:
+        users = response.json()
+    except Exception:
+        users = []
+
+    return users[0] if users else None
+
+
+async def find_user_by_id(
+    user_id: str,
+):
+    """Find local user by ID."""
+
+    supabase_url = get_supabase_url()
+
+    rest_url = (
+        f"{supabase_url}/rest/v1/users"
+    )
+
+    async with httpx.AsyncClient(
+        timeout=20.0
+    ) as client:
+
+        response = await client.get(
+            rest_url,
+            headers=supabase_admin_headers(),
+            params={
+                "select": "*",
+                "id": f"eq.{user_id}",
+            },
+        )
+
+    if response.status_code not in (200, 206):
+        return None
+
+    try:
+        users = response.json()
+    except Exception:
+        return None
+
+    return users[0] if users else None
+
+
+async def create_local_user(
+    email: str,
+    full_name: str,
+    role: str,
+):
+    """Create user in custom users table."""
+
+    supabase_url = get_supabase_url()
+
+    rest_url = (
+        f"{supabase_url}/rest/v1/users"
+    )
+
+    row = {
+        "email": email,
+        "full_name": full_name or "",
+        "user_type": role,
+    }
+
+    async with httpx.AsyncClient(
+        timeout=20.0
+    ) as client:
+
+        response = await client.post(
+            rest_url,
+            headers=supabase_admin_headers(),
+            json=row,
+        )
+
+    if response.status_code not in (200, 201):
+        error = extract_supabase_error(response)
+
+        print(
+            "CREATE USER ERROR:",
+            response.status_code,
+            error,
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create user record: {error}",
+        )
+
+    try:
+        created = response.json()
+    except Exception:
+        created = None
+
+    if isinstance(created, list):
+        return created[0] if created else row
+
+    return created or row
+
+
+# ============================================================
+# SUPABASE LOGIN
 # ============================================================
 
 @router.post(
@@ -345,59 +579,56 @@ async def supabase_login(
     payload: SupabaseLoginIn,
     response: Response,
 ):
-    """
-    Accept a Supabase access token.
-
-    1. Verify the Supabase access token.
-    2. Read user information from Supabase Auth.
-    3. Create/update user record in users table.
-    4. Create local JWT access token.
-    5. Create refresh token.
-    6. Set refresh token in HttpOnly cookie.
-    """
+    """Login using an existing Supabase access token."""
 
     if not payload.access_token:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=400,
             detail="access_token required",
         )
 
     supabase_url = get_supabase_url()
 
-    # --------------------------------------------------------
-    # Verify Supabase access token
-    # --------------------------------------------------------
-
-    supabase_user_url = (
+    user_url = (
         f"{supabase_url}/auth/v1/user"
     )
 
     headers = {
+        "apikey": get_supabase_anon_key(),
         "Authorization": (
             f"Bearer {payload.access_token}"
-        )
+        ),
     }
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            supabase_user_url,
+    async with httpx.AsyncClient(
+        timeout=20.0
+    ) as client:
+
+        user_response = await client.get(
+            user_url,
             headers=headers,
         )
 
-    if resp.status_code != 200:
+    if user_response.status_code != 200:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=401,
             detail="Invalid Supabase access token",
         )
 
-    user_info = resp.json()
+    user_info = user_response.json()
 
     email = user_info.get("email")
 
-    metadata = user_info.get(
-        "user_metadata",
-        {},
-    ) or {}
+    if not email:
+        raise HTTPException(
+            status_code=400,
+            detail="Supabase user has no email",
+        )
+
+    metadata = (
+        user_info.get("user_metadata")
+        or {}
+    )
 
     full_name = (
         metadata.get("full_name")
@@ -409,122 +640,84 @@ async def supabase_login(
         "avatar_url"
     )
 
-    if not email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Supabase user has no email",
+    user_row = await find_user_by_email(email)
+
+    if not user_row:
+
+        supabase_url = get_supabase_url()
+
+        rest_url = (
+            f"{supabase_url}/rest/v1/users"
         )
 
-    # --------------------------------------------------------
-    # Upsert / find user in users table
-    # --------------------------------------------------------
+        row = {
+            "email": email,
+            "full_name": full_name,
+            "user_type": "student",
+            "profile_picture": avatar_url,
+        }
 
-    rest_url = (
-        f"{supabase_url}/rest/v1/users"
-    )
+        async with httpx.AsyncClient(
+            timeout=20.0
+        ) as client:
 
-    service_key = (
-        get_supabase_service_role_key()
-    )
-
-    headers_admin = {
-        "apikey": service_key,
-        "Authorization": f"Bearer {service_key}",
-        "Content-Type": "application/json",
-        "Prefer": "return=representation",
-    }
-
-    async with httpx.AsyncClient() as client:
-
-        check_resp = await client.get(
-            rest_url,
-            headers=headers_admin,
-            params={
-                "select": "*",
-                "email": f"eq.{email}",
-            },
-        )
-
-        users = (
-            check_resp.json()
-            if check_resp.status_code in (200, 206)
-            else []
-        )
-
-        if users:
-            user_row = users[0]
-
-        else:
-            # Default user type.
-            # Employers can be handled separately.
-            payload_row = {
-                "email": email,
-                "full_name": full_name,
-                "user_type": "student",
-                "profile_picture": avatar_url,
-            }
-
-            create_resp = await client.post(
+            create_response = await client.post(
                 rest_url,
-                headers=headers_admin,
-                json=payload_row,
+                headers=supabase_admin_headers(),
+                json=row,
             )
 
-            if create_resp.status_code not in (
-                201,
-                200,
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to create user record",
-                )
-
-            created = create_resp.json()
-
-            user_row = (
-                created[0]
-                if isinstance(created, list)
-                else created
+        if create_response.status_code not in (
+            200,
+            201,
+        ):
+            error = extract_supabase_error(
+                create_response
             )
 
-    # --------------------------------------------------------
-    # Create local access JWT
-    # --------------------------------------------------------
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to create user record: {error}",
+            )
+
+        created = create_response.json()
+
+        user_row = (
+            created[0]
+            if isinstance(created, list)
+            else created
+        )
 
     token_data = {
         "sub": str(user_row.get("id")),
         "email": email,
-        "role": user_row.get("user_type"),
+        "role": user_row.get(
+            "user_type",
+            "student",
+        ),
     }
 
     access_token = create_access_token(
-        token_data,
-        expires_minutes=(
-            settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        ),
+        token_data
     )
 
-    # --------------------------------------------------------
-    # Create refresh token
-    # --------------------------------------------------------
-
-    refresh_plain, refresh_id = (
-        await create_refresh_token(
-            str(user_row.get("id"))
+    try:
+        refresh_plain, _ = (
+            await create_refresh_token(
+                str(user_row.get("id"))
+            )
         )
-    )
 
-    cookie_opts = cookie_options()
+        set_refresh_cookie(
+            response,
+            refresh_plain,
+        )
 
-    response.set_cookie(
-        "refresh_token",
-        refresh_plain,
-        httponly=cookie_opts["httponly"],
-        secure=cookie_opts["secure"],
-        samesite=cookie_opts["samesite"],
-        path=cookie_opts["path"],
-        max_age=cookie_opts["max_age"],
-    )
+    except Exception as error:
+        print(
+            "REFRESH TOKEN ERROR:",
+            repr(error),
+        )
 
     return {
         "access_token": access_token,
@@ -533,7 +726,383 @@ async def supabase_login(
 
 
 # ============================================================
-# Refresh token
+# EMAIL/PASSWORD LOGIN
+# ============================================================
+
+@router.post("/login")
+async def email_login(
+    payload: EmailLoginIn,
+    response: Response,
+):
+    """Login using Supabase email/password authentication."""
+
+    supabase_url = get_supabase_url()
+
+    auth_url = (
+        f"{supabase_url}/auth/v1/token"
+        "?grant_type=password"
+    )
+
+    auth_payload = {
+        "email": str(payload.email).strip(),
+        "password": payload.password,
+    }
+
+    async with httpx.AsyncClient(
+        timeout=20.0
+    ) as client:
+
+        auth_response = await client.post(
+            auth_url,
+            headers=supabase_auth_headers(),
+            json=auth_payload,
+        )
+
+    if auth_response.status_code != 200:
+        error = extract_supabase_error(
+            auth_response
+        )
+
+        raise HTTPException(
+            status_code=401,
+            detail=error,
+        )
+
+    data = auth_response.json()
+
+    sb_user = data.get("user") or {}
+
+    email = (
+        sb_user.get("email")
+        or str(payload.email).strip()
+    )
+
+    user_row = await find_user_by_email(email)
+
+    if not user_row:
+
+        metadata = (
+            sb_user.get("user_metadata")
+            or {}
+        )
+
+        full_name = (
+            metadata.get("full_name")
+            or metadata.get("name")
+            or ""
+        )
+
+        user_row = await create_local_user(
+            email=email,
+            full_name=full_name,
+            role=payload.role,
+        )
+
+    token_data = {
+        "sub": str(user_row.get("id")),
+        "email": email,
+        "role": user_row.get(
+            "user_type",
+            payload.role,
+        ),
+    }
+
+    local_token = create_access_token(
+        token_data
+    )
+
+    try:
+        refresh_plain, _ = (
+            await create_refresh_token(
+                str(user_row.get("id"))
+            )
+        )
+
+        set_refresh_cookie(
+            response,
+            refresh_plain,
+        )
+
+    except Exception as error:
+        print(
+            "REFRESH TOKEN ERROR:",
+            repr(error),
+        )
+
+    return {
+        "access_token": local_token,
+        "token_type": "bearer",
+        "role": user_row.get(
+            "user_type",
+            payload.role,
+        ),
+        "email": email,
+    }
+
+
+# ============================================================
+# REGISTER
+# ============================================================
+
+@router.post("/register")
+async def register_user(
+    payload: RegisterIn,
+    response: Response,
+):
+    """
+    Register a new user.
+
+    Flow:
+        1. Validate request.
+        2. Create account in Supabase Auth (via Admin API to bypass email limit).
+        3. Create local users table record.
+        4. Create local JWT.
+        5. Create refresh token if possible.
+    """
+
+    email = str(payload.email).strip().lower()
+
+    if not email:
+        raise HTTPException(
+            status_code=400,
+            detail="Email is required",
+        )
+
+    if len(payload.password) < 6:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least 6 characters",
+        )
+
+    if payload.role not in (
+        "student",
+        "employer",
+        "admin",
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid role",
+        )
+
+    try:
+
+        # ----------------------------------------------------
+        # 1. Supabase Admin signup (bypasses rate limit)
+        # ----------------------------------------------------
+
+        supabase_url = get_supabase_url()
+
+        signup_url = (
+            f"{supabase_url}/auth/v1/admin/users"
+        )
+
+        signup_payload = {
+            "email": email,
+            "password": payload.password,
+            "email_confirm": True,
+            "user_metadata": {
+                "role": payload.role,
+                "user_type": payload.role,
+                "full_name": payload.full_name or "",
+            },
+        }
+
+        async with httpx.AsyncClient(
+            timeout=20.0
+        ) as client:
+
+            signup_response = await client.post(
+                signup_url,
+                headers=supabase_admin_headers(),
+                json=signup_payload,
+            )
+
+        # ----------------------------------------------------
+        # 2. Handle Supabase signup failure
+        # ----------------------------------------------------
+
+        if signup_response.status_code not in (
+            200,
+            201,
+        ):
+            # If user already exists, it usually returns 422
+            error = extract_supabase_error(
+                signup_response
+            )
+
+            print(
+                "SUPABASE SIGNUP ERROR:",
+                signup_response.status_code,
+                error,
+            )
+
+            raise HTTPException(
+                status_code=400,
+                detail=error,
+            )
+
+        # ----------------------------------------------------
+        # 3. Parse Supabase response
+        # ----------------------------------------------------
+
+        try:
+            signup_data = signup_response.json()
+        except Exception:
+            signup_data = {}
+
+        sb_user = signup_data
+        registered_email = sb_user.get("email") or email
+
+        # ----------------------------------------------------
+        # 4. Check/create local users table record
+        # ----------------------------------------------------
+
+        user_row = await find_user_by_email(
+            registered_email
+        )
+
+        if not user_row:
+
+            user_row = await create_local_user(
+                email=registered_email,
+                full_name=payload.full_name,
+                role=payload.role,
+            )
+
+        # ----------------------------------------------------
+        # 5. Make sure user ID exists
+        # ----------------------------------------------------
+
+        user_id = user_row.get("id")
+
+        if not user_id:
+
+            raise HTTPException(
+                status_code=500,
+                detail="User was created but no local user ID was returned",
+            )
+
+        # ----------------------------------------------------
+        # 6. Create local JWT
+        # ----------------------------------------------------
+
+        token_data = {
+            "sub": str(user_id),
+            "email": registered_email,
+            "role": user_row.get(
+                "user_type",
+                payload.role,
+            ),
+        }
+
+        local_token = create_access_token(
+            token_data
+        )
+
+        # ----------------------------------------------------
+        # 7. Create refresh token
+        # ----------------------------------------------------
+
+        refresh_created = False
+
+        try:
+
+            refresh_plain, _ = (
+                await create_refresh_token(
+                    str(user_id)
+                )
+            )
+
+            set_refresh_cookie(
+                response,
+                refresh_plain,
+            )
+
+            refresh_created = True
+
+        except Exception as error:
+
+            print(
+                "REFRESH TOKEN ERROR:",
+                repr(error),
+            )
+
+        # ----------------------------------------------------
+        # 8. Success
+        # ----------------------------------------------------
+
+        return {
+            "access_token": local_token,
+            "token_type": "bearer",
+            "role": user_row.get(
+                "user_type",
+                payload.role,
+            ),
+            "email": registered_email,
+            "needs_email_confirmation": False,
+            "refresh_token_created": refresh_created,
+            "message": "Registration successful!",
+        }
+
+    # --------------------------------------------------------
+    # IMPORTANT:
+    # Do NOT catch/re-wrap HTTPException.
+    # --------------------------------------------------------
+
+    except HTTPException:
+        raise
+
+    except httpx.TimeoutException as error:
+
+        print(
+            "REGISTRATION TIMEOUT:",
+            repr(error),
+        )
+
+        raise HTTPException(
+            status_code=504,
+            detail="Supabase request timed out",
+        )
+
+    except httpx.RequestError as error:
+
+        print(
+            "REGISTRATION NETWORK ERROR:",
+            repr(error),
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to connect to Supabase",
+        )
+
+    except Exception as error:
+
+        import traceback
+
+        print(
+            "========== REGISTRATION ERROR =========="
+        )
+
+        print(
+            "ERROR:",
+            repr(error),
+        )
+
+        traceback.print_exc()
+
+        print(
+            "========================================"
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Registration failed due to a server error",
+        )
+
+
+# ============================================================
+# REFRESH
 # ============================================================
 
 @router.post(
@@ -544,11 +1113,7 @@ async def refresh(
     request: Request,
     response: Response,
 ):
-    """
-    Read refresh token from HttpOnly cookie,
-    validate it, rotate it, revoke the old token,
-    and return a new access token.
-    """
+    """Rotate refresh token and issue new access token."""
 
     token_plain = request.cookies.get(
         "refresh_token"
@@ -556,7 +1121,7 @@ async def refresh(
 
     if not token_plain:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=401,
             detail="Missing refresh token cookie",
         )
 
@@ -566,46 +1131,54 @@ async def refresh(
 
     if not record:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=401,
             detail="Invalid refresh token",
         )
 
-    # --------------------------------------------------------
-    # Check revoked status
-    # --------------------------------------------------------
-
     if record.get("revoked"):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=401,
             detail="Refresh token revoked",
         )
 
-    # --------------------------------------------------------
-    # Check expiry
-    # --------------------------------------------------------
-
-    expires_at = record.get("expires_at")
+    expires_at = record.get(
+        "expires_at"
+    )
 
     if expires_at:
+
         try:
-            expires_datetime = datetime.fromisoformat(
-                expires_at.replace("Z", "+00:00")
+
+            expires_datetime = (
+                datetime.fromisoformat(
+                    expires_at.replace(
+                        "Z",
+                        "+00:00",
+                    )
+                )
             )
 
-            # Handle timezone-aware datetime safely
-            now = datetime.now(
-                expires_datetime.tzinfo
-            )
+            if expires_datetime.tzinfo:
+
+                now = datetime.now(
+                    expires_datetime.tzinfo
+                )
+
+            else:
+
+                now = datetime.utcnow()
 
             if expires_datetime < now:
+
                 raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    status_code=401,
                     detail="Refresh token expired",
                 )
 
         except ValueError:
+
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
+                status_code=401,
                 detail="Invalid refresh token expiry",
             )
 
@@ -613,93 +1186,48 @@ async def refresh(
 
     if not user_id:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=401,
             detail="Refresh token has no user",
         )
 
-    # --------------------------------------------------------
-    # Rotate refresh token
-    # --------------------------------------------------------
-
+    # Create new refresh token
     new_plain, new_id = (
         await create_refresh_token(
             str(user_id)
         )
     )
 
+    # Revoke old refresh token
     await revoke_refresh_token(
         record.get("id"),
         replaced_by=new_id,
     )
 
-    # --------------------------------------------------------
-    # Set new refresh cookie
-    # --------------------------------------------------------
-
-    cookie_opts = cookie_options()
-
-    response.set_cookie(
-        "refresh_token",
+    # Set new cookie
+    set_refresh_cookie(
+        response,
         new_plain,
-        httponly=cookie_opts["httponly"],
-        secure=cookie_opts["secure"],
-        samesite=cookie_opts["samesite"],
-        path=cookie_opts["path"],
-        max_age=cookie_opts["max_age"],
     )
 
-    # --------------------------------------------------------
-    # Fetch user information
-    # --------------------------------------------------------
-
-    supabase_url = get_supabase_url()
-    service_key = get_supabase_service_role_key()
-
-    rest_url = (
-        f"{supabase_url}/rest/v1/users"
+    # Fetch local user
+    user_row = await find_user_by_id(
+        str(user_id)
     )
 
-    headers_admin = {
-        "apikey": service_key,
-        "Authorization": f"Bearer {service_key}",
-        "Content-Type": "application/json",
-    }
-
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            rest_url,
-            headers=headers_admin,
-            params={
-                "select": "*",
-                "id": f"eq.{user_id}",
-            },
+    if not user_row:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found",
         )
-
-    users = (
-        resp.json()
-        if resp.status_code in (200, 206)
-        else []
-    )
 
     token_data = {
         "sub": str(user_id),
+        "email": user_row.get("email"),
+        "role": user_row.get("user_type"),
     }
 
-    if users:
-        user_row = users[0]
-
-        token_data.update(
-            {
-                "email": user_row.get("email"),
-                "role": user_row.get("user_type"),
-            }
-        )
-
     access_token = create_access_token(
-        token_data,
-        expires_minutes=(
-            settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        ),
+        token_data
     )
 
     return {
@@ -709,7 +1237,7 @@ async def refresh(
 
 
 # ============================================================
-# Logout
+# LOGOUT
 # ============================================================
 
 @router.post("/logout")
@@ -717,20 +1245,22 @@ async def logout(
     request: Request,
     response: Response,
 ):
-    """
-    Revoke refresh token and clear cookie.
-    """
+    """Revoke refresh token and clear cookie."""
 
     token_plain = request.cookies.get(
         "refresh_token"
     )
 
     if token_plain:
-        record = await get_refresh_record_by_token(
-            token_plain
+
+        record = (
+            await get_refresh_record_by_token(
+                token_plain
+            )
         )
 
         if record:
+
             await revoke_refresh_token(
                 record.get("id")
             )
@@ -746,48 +1276,42 @@ async def logout(
 
 
 # ============================================================
-# Current user
+# CURRENT USER
 # ============================================================
 
 @router.get("/me")
 async def me(
     authorization: str = Header(None),
 ):
-    """
-    Return user information based on:
-
-    Authorization: Bearer <token>
-    """
+    """Return current user from local JWT."""
 
     if not authorization:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=401,
             detail="Authorization header missing",
         )
 
-    # --------------------------------------------------------
-    # Parse Authorization header
-    # --------------------------------------------------------
-
     try:
-        scheme, token = authorization.split()
+
+        parts = authorization.split()
+
+        if len(parts) != 2:
+            raise ValueError()
+
+        scheme, token = parts
 
         if scheme.lower() != "bearer":
-            raise Exception(
-                "Invalid auth scheme"
-            )
+            raise ValueError()
 
     except Exception:
+
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=401,
             detail="Invalid Authorization header",
         )
 
-    # --------------------------------------------------------
-    # Decode local JWT
-    # --------------------------------------------------------
-
     try:
+
         payload = jwt.decode(
             token,
             settings.SECRET_KEY,
@@ -797,8 +1321,9 @@ async def me(
         )
 
     except Exception:
+
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=401,
             detail="Invalid or expired token",
         )
 
@@ -806,52 +1331,19 @@ async def me(
 
     if not user_id:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=400,
             detail="Token missing subject",
         )
 
-    # --------------------------------------------------------
-    # Fetch user from Supabase
-    # --------------------------------------------------------
-
-    supabase_url = get_supabase_url()
-    service_key = get_supabase_service_role_key()
-
-    rest_url = (
-        f"{supabase_url}/rest/v1/users"
+    user_row = await find_user_by_id(
+        str(user_id)
     )
 
-    headers_admin = {
-        "apikey": service_key,
-        "Authorization": f"Bearer {service_key}",
-        "Content-Type": "application/json",
-    }
-
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            rest_url,
-            headers=headers_admin,
-            params={
-                "select": "*",
-                "id": f"eq.{user_id}",
-            },
-        )
-
-    if resp.status_code not in (200, 206):
+    if not user_row:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=404,
             detail="User not found",
         )
-
-    users = resp.json()
-
-    if not users:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-
-    user_row = users[0]
 
     return {
         "id": user_row.get("id"),
@@ -862,250 +1354,3 @@ async def me(
             "profile_picture"
         ),
     }
-
-
-# ============================================================
-# Direct Email/Password Login (via Supabase Auth REST API)
-# ============================================================
-
-class EmailLoginIn(BaseModel):
-    email: str
-    password: str
-    role: str = "student"
-
-
-class RegisterIn(BaseModel):
-    email: str
-    password: str
-    role: str = "student"
-    full_name: str = ""
-
-
-@router.post("/login")
-async def email_login(
-    payload: EmailLoginIn,
-    response: Response,
-):
-    """
-    Login with email + password directly.
-    Calls Supabase Auth REST API to authenticate,
-    then issues a local JWT — no Supabase JS client required.
-    """
-    supabase_url = get_supabase_url()
-    anon_key = (
-        os.getenv("SUPABASE_ANON_KEY")
-        or getattr(settings, "SUPABASE_ANON_KEY", None)
-        or getattr(settings, "SUPABASE_KEY", None)
-    )
-
-    # Authenticate with Supabase
-    auth_url = f"{supabase_url}/auth/v1/token?grant_type=password"
-    headers = {
-        "apikey": anon_key,
-        "Content-Type": "application/json",
-    }
-    auth_payload = {
-        "email": payload.email.strip(),
-        "password": payload.password,
-    }
-
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(auth_url, headers=headers, json=auth_payload)
-
-    if resp.status_code != 200:
-        data = resp.json()
-        detail = data.get("error_description") or data.get("message") or data.get("error") or "Invalid credentials"
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=detail,
-        )
-
-    supabase_data = resp.json()
-    access_token = supabase_data.get("access_token")
-    sb_user = supabase_data.get("user", {})
-    email = sb_user.get("email") or payload.email
-
-    # Now exchange with backend (upsert user record and issue local JWT)
-    service_key = get_supabase_service_role_key()
-    rest_url = f"{supabase_url}/rest/v1/users"
-    headers_admin = {
-        "apikey": service_key,
-        "Authorization": f"Bearer {service_key}",
-        "Content-Type": "application/json",
-        "Prefer": "return=representation",
-    }
-
-    async with httpx.AsyncClient() as client:
-        check = await client.get(
-            rest_url,
-            headers=headers_admin,
-            params={"select": "*", "email": f"eq.{email}"},
-        )
-        users = check.json() if check.status_code in (200, 206) else []
-
-        if users:
-            user_row = users[0]
-        else:
-            metadata = sb_user.get("user_metadata", {}) or {}
-            row = {
-                "email": email,
-                "full_name": metadata.get("full_name") or payload.full_name if hasattr(payload, "full_name") else "",
-                "user_type": payload.role,
-            }
-            cr = await client.post(rest_url, headers=headers_admin, json=row)
-            if cr.status_code not in (200, 201):
-                raise HTTPException(status_code=500, detail="Failed to create user record")
-            created = cr.json()
-            user_row = created[0] if isinstance(created, list) else created
-
-    token_data = {
-        "sub": str(user_row.get("id")),
-        "email": email,
-        "role": user_row.get("user_type", payload.role),
-    }
-    local_token = create_access_token(token_data)
-
-    # Refresh token
-    try:
-        refresh_plain, _ = await create_refresh_token(str(user_row.get("id")))
-        cookie_opts = cookie_options()
-        response.set_cookie(
-            "refresh_token", refresh_plain,
-            httponly=cookie_opts["httponly"],
-            secure=cookie_opts["secure"],
-            samesite=cookie_opts["samesite"],
-            path=cookie_opts["path"],
-            max_age=cookie_opts["max_age"],
-        )
-    except Exception:
-        pass  # Refresh token optional — don't block login
-
-    return {
-        "access_token": local_token,
-        "token_type": "bearer",
-        "role": user_row.get("user_type", payload.role),
-        "email": email,
-    }
-
-
-@router.post("/register")
-async def register_user(
-    payload: RegisterIn,
-    response: Response,
-):
-    """
-    Register a new user with email + password.
-    Creates Supabase Auth user + custom users table record.
-    Returns access token immediately (no email confirmation wait).
-    """
-    supabase_url = get_supabase_url()
-    anon_key = (
-        os.getenv("SUPABASE_ANON_KEY")
-        or getattr(settings, "SUPABASE_ANON_KEY", None)
-        or getattr(settings, "SUPABASE_KEY", None)
-    )
-
-    # Try to sign up via Supabase
-    signup_url = f"{supabase_url}/auth/v1/signup"
-    headers = {
-        "apikey": anon_key,
-        "Content-Type": "application/json",
-    }
-    signup_payload = {
-        "email": payload.email.strip(),
-        "password": payload.password,
-        "data": {
-            "role": payload.role,
-            "user_type": payload.role,
-            "full_name": payload.full_name,
-        },
-    }
-
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(signup_url, headers=headers, json=signup_payload)
-
-    resp_data = resp.json()
-
-    if resp.status_code not in (200, 201):
-        detail = (
-            resp_data.get("error_description")
-            or resp_data.get("message")
-            or resp_data.get("error")
-            or "Registration failed"
-        )
-        raise HTTPException(status_code=400, detail=detail)
-
-    # If email confirmation required, still create users table record
-    # and return a token so user can use the app
-    sb_user = resp_data.get("user") or resp_data
-    sb_session = resp_data.get("session") or {}
-    email = sb_user.get("email") or payload.email.strip()
-
-    service_key = get_supabase_service_role_key()
-    rest_url = f"{supabase_url}/rest/v1/users"
-    headers_admin = {
-        "apikey": service_key,
-        "Authorization": f"Bearer {service_key}",
-        "Content-Type": "application/json",
-        "Prefer": "return=representation",
-    }
-
-    async with httpx.AsyncClient() as client:
-        # Check if user already in users table
-        check = await client.get(
-            rest_url,
-            headers=headers_admin,
-            params={"select": "*", "email": f"eq.{email}"},
-        )
-        existing = check.json() if check.status_code in (200, 206) else []
-
-        if existing:
-            user_row = existing[0]
-        else:
-            row = {
-                "email": email,
-                "full_name": payload.full_name or "",
-                "user_type": payload.role,
-            }
-            cr = await client.post(rest_url, headers=headers_admin, json=row)
-            if cr.status_code not in (200, 201):
-                raise HTTPException(status_code=500, detail="User auth created but profile failed")
-            created = cr.json()
-            user_row = created[0] if isinstance(created, list) else created
-
-    token_data = {
-        "sub": str(user_row.get("id")),
-        "email": email,
-        "role": payload.role,
-    }
-    local_token = create_access_token(token_data)
-
-    # Refresh token
-    try:
-        refresh_plain, _ = await create_refresh_token(str(user_row.get("id")))
-        cookie_opts = cookie_options()
-        response.set_cookie(
-            "refresh_token", refresh_plain,
-            httponly=cookie_opts["httponly"],
-            secure=cookie_opts["secure"],
-            samesite=cookie_opts["samesite"],
-            path=cookie_opts["path"],
-            max_age=cookie_opts["max_age"],
-        )
-    except Exception:
-        pass
-
-    needs_confirm = not sb_session.get("access_token")
-
-    return {
-        "access_token": local_token,
-        "token_type": "bearer",
-        "role": payload.role,
-        "email": email,
-        "needs_email_confirmation": needs_confirm,
-        "message": (
-            "Registration successful! Please check your email to confirm your account. You can use the app now."
-            if needs_confirm
-            else "Registration successful!"
-        ),
-    }
