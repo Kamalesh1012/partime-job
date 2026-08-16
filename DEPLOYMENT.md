@@ -32,20 +32,20 @@ Step 2 — Google OAuth configuration (Supabase)
 ----------------------------------------------
 Supabase needs Google Client ID/Secret configured for the Google provider.
 
-1. Create OAuth credentials in Google Cloud Console (Web application).
+1. Create OAuth credentials in Google Cloud Console (Web application) under project `workmate-chennai`.
    - Authorized JavaScript origins:
-     - https://your-netlify-site.netlify.app
-     - https://your-vercel-backend-url.com (optional)
-     - http://localhost:5173 (for local testing)
+     - `https://bucolic-sunflower-10231c.netlify.app`
+     - `https://rvuxitlbjpulbwsgduwz.supabase.co`
+     - `http://localhost:5173`
+     - `http://127.0.0.1:5173`
    - Authorized redirect URIs:
-     - https://your-netlify-site.netlify.app
-     - https://your-vercel-backend-url.com
-     - http://localhost:5173
+     - `https://rvuxitlbjpulbwsgduwz.supabase.co/auth/v1/callback`
 2. Copy Google Client ID and Client Secret.
-3. In Supabase Dashboard → Authentication → Providers → Google, paste:
-   - Google Client ID
-   - Google Client Secret
-4. In Supabase > Authentication > Settings > Redirect URLs, add the Netlify production URL and Vercel API URL if required.
+3. In Supabase Dashboard → Authentication → Providers → Google:
+   - Paste Google Client ID and Client Secret, then click Save.
+4. In Supabase → Authentication → URL Configuration:
+   - Site URL: `https://bucolic-sunflower-10231c.netlify.app`
+   - Redirect URLs: `http://localhost:5173/**`, `http://127.0.0.1:5173/**`, `https://bucolic-sunflower-10231c.netlify.app/**`
 
 Step 3 — RLS & Policies (recommended)
 -------------------------------------

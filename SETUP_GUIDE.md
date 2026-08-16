@@ -46,27 +46,27 @@ ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
 ## 🔐 Step 2: Google OAuth Setup
 
 ### 1. Google Cloud Console
-
-1. Go to [console.cloud.google.com](https://console.cloud.google.com)
-2. Create a new project (e.g., "WorkMate Chennai")
-3. Enable **Google+ API** and **Google Identity Services API**
-
-### 2. Create OAuth Credentials
-
-1. Go to Credentials → Create Credentials → OAuth 2.0 Client ID
-2. Choose "Web application"
-3. Add Authorized JavaScript Origins:
-   - `http://localhost:5173`
-   - `http://localhost:3000`
-   - `https://your-netlify-domain.netlify.app`
-
-4. Add Authorized Redirect URIs:
-   - `http://localhost:5173`
-   - `http://localhost:8000`
-   - `https://your-netlify-domain.netlify.app`
-   - `https://your-vercel-domain.vercel.app`
-
-5. Copy **Client ID** and **Client Secret**
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) (Project: `workmate-chennai`)
+2. Go to **APIs & Services** → **OAuth consent screen**:
+   - Set User Type to **External**
+   - App Name: `WorkMate Chennai`
+   - User Support Email: your email
+   - Authorized Domains: `netlify.app`, `supabase.co`
+3. Go to **APIs & Services** → **Credentials** → **Create Credentials** → **OAuth client ID**:
+   - Application type: **Web application**
+   - Name: `WorkMate Chennai Web`
+   - **Authorized JavaScript origins**:
+     - `http://localhost:5173`
+     - `http://127.0.0.1:5173`
+     - `https://bucolic-sunflower-10231c.netlify.app`
+     - `https://rvuxitlbjpulbwsgduwz.supabase.co`
+   - **Authorized redirect URIs**:
+     - `https://rvuxitlbjpulbwsgduwz.supabase.co/auth/v1/callback`
+4. Copy **Client ID** and **Client Secret**.
+5. In Supabase Dashboard → **Authentication** → **Providers** → **Google**:
+   - Toggle **Enable Google provider** to ON.
+   - Paste **Client ID** and **Client Secret**.
+   - Click **Save**.
 
 ---
 
