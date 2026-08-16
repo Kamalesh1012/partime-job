@@ -250,10 +250,216 @@
   overflow-x: auto;
 }
 
-.admin-jobs-table table {
+/* ==================== Admin Tabs Nav & Location Master ==================== */
+.admin-tabs-nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.admin-nav-tab {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  color: #475569;
+  padding: 0.55rem 1.1rem;
+  border-radius: 0.65rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.admin-nav-tab.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+.admin-success-msg {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+}
+
+.admin-success-msg button {
+  background: none;
+  border: none;
+  color: #047857;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.admin-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.primary-action-btn {
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  padding: 0.6rem 1.15rem;
+  border-radius: 0.65rem;
+  font-weight: 700;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.admin-loc-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.loc-summary-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.loc-summary-box strong {
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.loc-summary-box span {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.admin-location-table-wrap {
+  overflow-x: auto;
+  background: #ffffff;
+  border-radius: 0.85rem;
+  border: 1px solid #e2e8f0;
+}
+
+.admin-table {
   width: 100%;
   border-collapse: collapse;
+  font-size: 0.875rem;
 }
+
+.admin-table th,
+.admin-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.admin-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 700;
+}
+
+.code-pill {
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 800;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.4rem;
+  font-size: 0.75rem;
+}
+
+.job-count-badge {
+  background: #ecfdf5;
+  color: #047857;
+  padding: 0.2rem 0.55rem;
+  border-radius: 1rem;
+  font-weight: 800;
+  font-size: 0.8rem;
+}
+
+.status-pill {
+  padding: 0.2rem 0.6rem;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.status-pill.active {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.status-pill.disabled {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.toggle-status-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Add Location Modal */
+.add-loc-modal {
+  max-width: 520px;
+  width: 90%;
+  padding: 1.5rem;
+  border-radius: 1rem;
+}
+
+.add-loc-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.add-loc-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.add-loc-form input,
+.add-loc-form select {
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.65rem;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 0.9rem;
+}
+
+.save-loc-btn {
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  padding: 0.75rem;
+  border-radius: 0.65rem;
+  font-weight: 800;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
 
 .admin-jobs-table th {
   background: #f1f5f9;

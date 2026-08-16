@@ -52,16 +52,25 @@ export const authAPI = {
 // ==================== Pan-India Locations APIs ====================
 
 export const locationsAPI = {
-  getStates: () => api.get('/locations/states'),
-  getDistricts: (state) => api.get('/locations/districts', { params: { state } }),
+  getStates: (type) => api.get('/locations/states', { params: { type } }),
+  getStateById: (stateId) => api.get(`/locations/states/${stateId}`),
+  getDistricts: (stateId) => api.get(`/locations/states/${stateId}/districts`),
+  getCities: (districtId) => api.get(`/locations/districts/${districtId}/cities`),
   getPopularCities: () => api.get('/locations/popular'),
   searchLocation: (query) => api.get('/locations/search', { params: { q: query } }),
+  reverseGeocode: (latitude, longitude) =>
+    api.get('/locations/reverse-geocode', { params: { latitude, longitude } }),
+  getHierarchy: () => api.get('/locations/hierarchy'),
 };
 
 // ==================== Jobs APIs ====================
 
 export const jobsAPI = {
   getJobs: (filters = {}) => api.get('/jobs', { params: filters }),
+  getNearbyJobs: (latitude, longitude, radius = 15, category = '', job_type = '', limit = 30) =>
+    api.get('/jobs/nearby', { params: { latitude, longitude, radius, category, job_type, limit } }),
+  getJobsForMap: (filters = {}) => api.get('/jobs/map', { params: filters }),
+  getJobCountsByLocation: () => api.get('/jobs/counts-by-location'),
   getTrendingJobs: (limit = 10) => api.get('/jobs/trending', { params: { limit } }),
   searchJobs: (query, city = '', state = '', skip = 0, limit = 20) =>
     api.get('/jobs/search', { params: { q: query, city, state, skip, limit } }),
@@ -191,6 +200,11 @@ export const adminAPI = {
   reportJob: (jobId, reason, studentId) =>
     api.post(`/admin/reports/${jobId}`, {}, { params: { reason, student_id: studentId } }),
   getAnalytics: () => api.get('/admin/analytics'),
+  getLocations: () => api.get('/admin/locations'),
+  addState: (stateData) => api.post('/admin/locations/state', stateData),
+  addDistrict: (districtData) => api.post('/admin/locations/district', districtData),
+  addCity: (cityData) => api.post('/admin/locations/city', cityData),
+  updateLocation: (type, id, data) => api.put(`/admin/locations/${type}/${id}`, data),
 };
 
 export default api;

@@ -174,7 +174,10 @@ export default function InteractiveMapView({
   onSelectTechnician,
   onSelectJob,
   height = '480px',
-  showFilters = true
+  showFilters = true,
+  isPicker = false,
+  onPositionChange = null,
+  initialCoords = null
 }) {
   const { selectedCity, selectedState, selectedArea, radiusKm, setLocation, openLocationModal } = useLocationStore();
   const mapContainerRef = useRef(null);
@@ -186,6 +189,9 @@ export default function InteractiveMapView({
 
   // Helper to get coordinates for city/area
   const getCoords = (city, state, area) => {
+    if (initialCoords && initialCoords.length === 2 && initialCoords[0] && initialCoords[1]) {
+      return initialCoords;
+    }
     if (area && CITY_COORDINATES[area]) return CITY_COORDINATES[area];
     if (city && CITY_COORDINATES[city]) return CITY_COORDINATES[city];
     if (state && STATE_CENTERS[state]) return STATE_CENTERS[state];
@@ -246,6 +252,47 @@ export default function InteractiveMapView({
     // Pan / Fly to center
     map.setView([centerLat, centerLng], 12);
 
+    // PICKER MODE: For Employer Job Creation / Drag pinpointing
+    if (isPicker) {
+      const pickerIcon = L.divIcon({
+        className: 'custom-map-picker-pin',
+        html: `
+          <div class="picker-marker-badge">
+            <span class="picker-pin-icon">📍</span>
+            <span class="picker-pin-text">Drag to Position</span>
+          </div>
+        `,
+        iconSize: [60, 36],
+        iconAnchor: [30, 36]
+      });
+
+      const pickerMarker = L.marker([centerLat, centerLng], {
+        icon: pickerIcon,
+        draggable: true
+      });
+
+      pickerMarker.bindPopup(`
+        <div class="map-popup-card">
+          <strong>📍 Selected Job Coordinates</strong>
+          <p>Lat: ${centerLat.toFixed(4)}, Lng: ${centerLng.toFixed(4)}</p>
+          <small>Drag marker to adjust exact doorstep/worksite location</small>
+        </div>
+      `).openPopup();
+
+      pickerMarker.on('dragend', (e) => {
+        const position = e.target.getLatLng();
+        if (onPositionChange) {
+          onPositionChange({
+            latitude: position.lat,
+            longitude: position.lng
+          });
+        }
+      });
+
+      layerGroup.addLayer(pickerMarker);
+      return;
+    }
+
     // 1. Center Location Marker (User / Active City)
     const userIcon = L.divIcon({
       className: 'custom-map-user-pin',
@@ -263,7 +310,7 @@ export default function InteractiveMapView({
       .bindPopup(`
         <div class="map-popup-card user-popup">
           <strong>📍 Active Location: ${selectedArea ? `${selectedArea}, ` : ''}${selectedCity}</strong>
-          <p>${selectedState} • Search radius: ${radiusKm} km</p>
+          <p>${selectedState} • Search radius: ${radiusKm || 15} km</p>
         </div>
       `);
     layerGroup.addLayer(userMarker);
@@ -274,25 +321,21 @@ export default function InteractiveMapView({
       fillColor: '#3b82f6',
       fillOpacity: 0.08,
       weight: 1.5,
-      radius: (radiusKm || 10) * 1000
+      radius: (radiusKm || 15) * 1000
     });
     layerGroup.addLayer(radiusCircle);
 
     // 2. Add Technician Markers
     if (activeFilter === 'all' || activeFilter === 'technicians') {
       const demoTechs = technicians.length > 0 ? technicians : [
-        { id: 'tech-1', full_name: 'Murugan Sundaram', role: 'Electrician', rating: 4.9, visiting_charge: 199, locality: 'Main Hub' },
-        { id: 'tech-2', full_name: 'Ramesh Gowda', role: 'AC Specialist', rating: 4.8, visiting_charge: 299, locality: 'Sector 4' },
-        { id: 'tech-3', full_name: 'Suresh Kumar', role: 'Plumbing Expert', rating: 4.95, visiting_charge: 149, locality: 'Express Ave' },
-        { id: 'tech-4', full_name: 'Anand Verma', role: 'Appliance Repair', rating: 4.85, visiting_charge: 249, locality: 'Ring Road' }
+        { id: 'tech-1', full_name: 'Murugan Sundaram', role: 'Electrician & AC Tech', rating: 4.9, visiting_charge: 199 },
+        { id: 'tech-2', full_name: 'Ramesh Gowda', role: 'Plumbing & RO Tech', rating: 4.8, visiting_charge: 249 },
+        { id: 'tech-3', full_name: 'Anand Kumar', role: 'Washing Machine Repair', rating: 4.9, visiting_charge: 299 }
       ];
 
       demoTechs.forEach((tech, i) => {
-        // Scatter around center coordinates
-        const angle = (i * 2 * Math.PI) / demoTechs.length + 0.3;
-        const dist = 0.015 + (i % 3) * 0.012;
-        const lat = centerLat + Math.cos(angle) * dist;
-        const lng = centerLng + Math.sin(angle) * dist;
+        const lat = tech.latitude || (centerLat + Math.sin(i * 1.8 + 0.5) * 0.025);
+        const lng = tech.longitude || (centerLng + Math.cos(i * 1.8 + 0.5) * 0.025);
 
         const techIcon = L.divIcon({
           className: 'custom-map-tech-pin',
@@ -341,33 +384,32 @@ export default function InteractiveMapView({
       ];
 
       demoJobs.forEach((job, i) => {
-        const angle = (i * 2 * Math.PI) / demoJobs.length + 1.2;
-        const dist = 0.02 + (i % 2) * 0.015;
-        const lat = centerLat + Math.cos(angle) * dist;
-        const lng = centerLng + Math.sin(angle) * dist;
+        const lat = job.latitude || (centerLat + Math.cos((i * 2 * Math.PI) / demoJobs.length + 1.2) * (0.02 + (i % 2) * 0.015));
+        const lng = job.longitude || (centerLng + Math.sin((i * 2 * Math.PI) / demoJobs.length + 1.2) * (0.02 + (i % 2) * 0.015));
 
         const jobIcon = L.divIcon({
           className: 'custom-map-job-pin',
           html: `
-            <div class="job-marker-badge">
-              <span class="job-marker-icon">🎪</span>
-              <span class="job-marker-name">${job.title?.slice(0, 12)}...</span>
+            <div class="job-marker-badge ${job.is_urgent ? 'urgent-pulse' : ''}">
+              <span class="job-marker-icon">💼</span>
+              <span class="job-marker-name">${job.title?.slice(0, 14)}...</span>
             </div>
           `,
-          iconSize: [48, 30],
-          iconAnchor: [24, 15]
+          iconSize: [52, 32],
+          iconAnchor: [26, 16]
         });
 
         const jobMarker = L.marker([lat, lng], { icon: jobIcon })
           .bindPopup(`
             <div class="map-popup-card job-popup">
               <div class="popup-header">
-                <strong>🎪 ${job.title}</strong>
+                <strong>💼 ${job.title}</strong>
               </div>
-              <p class="popup-role">${job.employer || job.company_name || 'Direct Organizer'}</p>
+              <p class="popup-role">🏢 ${job.employer || job.employer_name || job.company_name || 'SEWAA Employer'}</p>
+              <p class="popup-loc">📍 ${job.area || job.area_name || job.district_name || job.city || selectedCity}${job.distance_display ? ` • <span class="dist-tag">${job.distance_display}</span>` : ''}</p>
               <div class="popup-footer">
-                <span class="popup-pay">${job.pay || job.salary_display || '₹800 - ₹1,200'}</span>
-                <button class="popup-action-btn job-btn" id="apply-job-${job.id}">View Gig</button>
+                <span class="popup-pay">${job.salary_display || job.pay || `₹${job.salary_min || 800} - ₹${job.salary_max || 1200} /day`}</span>
+                <button class="popup-action-btn job-btn" id="apply-job-${job.id}">View Job</button>
               </div>
             </div>
           `);
@@ -382,7 +424,7 @@ export default function InteractiveMapView({
         layerGroup.addLayer(jobMarker);
       });
     }
-  }, [selectedCity, selectedState, selectedArea, radiusKm, activeFilter, technicians, jobs]);
+  }, [selectedCity, selectedState, selectedArea, radiusKm, activeFilter, technicians, jobs, isPicker]);
 
   // Center on GPS button
   const handleRecenter = () => {
