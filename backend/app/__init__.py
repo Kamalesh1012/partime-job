@@ -1,1 +1,3 @@
-# backend app packagenpm run build
+"""
+WorkMate Chennai - Backend App Package
+"""

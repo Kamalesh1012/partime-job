@@ -1,11 +1,38 @@
 """
-Admin routes
+Admin routes - Admin management and verification endpoints
 """
-
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from backend.config import get_db
+from pydantic import BaseModel
+from typing import Optional
+from app.core.config import settings
+import httpx
 
 router = APIRouter()
+
+
+# ==================== Request/Response Models ====================
+
+class VerifyEmployerRequest(BaseModel):
+    is_verified: bool = True
+
+
+async def get_db():
+    """Database dependency"""
+    from supabase import create_client
+    
+    supabase_url = settings.SUPABASE_URL
+    supabase_key = settings.SUPABASE_KEY
+    
+    if not supabase_url or not supabase_key:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Supabase configuration missing"
+        )
+    
+    return create_client(supabase_url, supabase_key)
+
+
+# ==================== Endpoints ====================
 
 @router.get("/employers", response_model=dict)
 async def get_unverified_employers(
@@ -14,7 +41,7 @@ async def get_unverified_employers(
     db = Depends(get_db)
 ):
     """
-    Get unverified employers (admin only)
+    Get list of unverified employers (admin only)
     """
     try:
         response = db.table("employer_profiles")\
@@ -34,20 +61,25 @@ async def get_unverified_employers(
             detail=str(e)
         )
 
+
 @router.post("/employers/{employer_id}/verify", response_model=dict)
-async def verify_employer(employer_id: str, db = Depends(get_db)):
+async def verify_employer(
+    employer_id: str,
+    request: VerifyEmployerRequest,
+    db = Depends(get_db)
+):
     """
-    Verify an employer (admin only)
+    Verify or unverify an employer (admin only)
     """
     try:
         response = db.table("employer_profiles")\
-            .update({"is_verified": True})\
+            .update({"is_verified": request.is_verified})\
             .eq("id", employer_id)\
             .execute()
         
         return {
             "status": "success",
-            "message": "Employer verified successfully",
+            "message": "Employer verification status updated successfully",
             "data": response.data[0] if response.data else None
         }
     except Exception as e:
@@ -56,53 +88,27 @@ async def verify_employer(employer_id: str, db = Depends(get_db)):
             detail=str(e)
         )
 
-@router.delete("/jobs/{job_id}", response_model=dict)
-async def remove_fake_job(job_id: str, reason: str = Query(...), db = Depends(get_db)):
-    """
-    Remove a fake or inappropriate job (admin only)
-    """
-    try:
-        db.table("jobs").delete().eq("id", job_id).execute()
-        
-        # Log the removal
-        db.table("reports").insert({
-            "report_type": "job_removed",
-            "job_id": job_id,
-            "reason": reason,
-            "admin_action": "removed"
-        }).execute()
-        
-        return {
-            "status": "success",
-            "message": "Job removed successfully",
-            "reason": reason
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
 
 @router.get("/reports", response_model=dict)
-async def get_reports(
+@router.get("/jobs/reported", response_model=dict)
+async def get_reported_jobs(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db = Depends(get_db)
 ):
     """
-    Get scam reports (admin only)
+    Get reported jobs for moderation (admin only)
     """
     try:
         response = db.table("reports")\
-            .select("*")\
-            .order("created_at", desc=True)\
-            .range(skip, skip + limit)\
+            .select("*, jobs(*)")\
+            .range(skip, skip + limit - 1)\
             .execute()
         
         return {
             "status": "success",
-            "data": response.data,
-            "total": len(response.data)
+            "data": response.data or [],
+            "total": len(response.data or [])
         }
     except Exception as e:
         raise HTTPException(
@@ -110,27 +116,71 @@ async def get_reports(
             detail=str(e)
         )
 
+
 @router.post("/reports/{job_id}", response_model=dict)
 async def report_job(
     job_id: str,
     reason: str = Query(...),
-    student_id: str = Query(...),
+    student_id: Optional[str] = Query(None),
     db = Depends(get_db)
 ):
     """
-    Report a suspicious/scam job
+    Report a fake or inappropriate job posting
     """
     try:
-        response = db.table("reports").insert({
+        res = db.table("reports").insert({
             "job_id": job_id,
-            "student_id": student_id,
             "reason": reason,
-            "report_type": "scam_report"
+            "student_id": student_id,
+            "report_type": "fake_job"
         }).execute()
+        return {
+            "status": "success",
+            "message": "Job report submitted successfully",
+            "data": res.data[0] if res.data else None
+        }
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.delete("/jobs/{job_id}", response_model=dict)
+async def delete_job_admin(
+    job_id: str,
+    reason: Optional[str] = Query(None),
+    db = Depends(get_db)
+):
+    """
+    Admin removal of a job posting
+    """
+    try:
+        db.table("jobs").update({"is_active": False}).eq("id", job_id).execute()
+        return {
+            "status": "success",
+            "message": f"Job deactivated. Reason: {reason or 'Admin moderation'}"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/jobs/{job_id}/moderate", response_model=dict)
+async def moderate_job(
+    job_id: str,
+    action: str = Query("remove", pattern="^(remove|restore)$"),
+    db = Depends(get_db)
+):
+    """
+    Take moderation action on a job (admin only)
+    """
+    try:
+        is_active = action != "remove"
+        response = db.table("jobs")\
+            .update({"is_active": is_active})\
+            .eq("id", job_id)\
+            .execute()
         
         return {
             "status": "success",
-            "message": "Report submitted successfully",
+            "message": f"Job {action}d successfully",
             "data": response.data[0] if response.data else None
         }
     except Exception as e:
@@ -139,48 +189,28 @@ async def report_job(
             detail=str(e)
         )
 
+
 @router.get("/analytics", response_model=dict)
-async def get_analytics(db = Depends(get_db)):
+@router.get("/statistics", response_model=dict)
+async def get_admin_statistics(db = Depends(get_db)):
     """
-    Get platform analytics (admin only)
+    Get platform statistics for admin dashboard
     """
     try:
-        # Get user stats
-        users = db.table("users").select("id").execute()
-        total_users = len(users.data) if users.data else 0
-        
-        students = db.table("users").select("id").eq("user_type", "student").execute()
-        total_students = len(students.data) if students.data else 0
-        
-        employers = db.table("users").select("id").eq("user_type", "employer").execute()
-        total_employers = len(employers.data) if employers.data else 0
-        
-        # Get job stats
-        jobs = db.table("jobs").select("id").execute()
-        total_jobs = len(jobs.data) if jobs.data else 0
-        
-        active_jobs = db.table("jobs").select("id").eq("is_active", True).execute()
-        total_active = len(active_jobs.data) if active_jobs.data else 0
-        
-        # Get application stats
-        applications = db.table("applications").select("id").execute()
-        total_applications = len(applications.data) if applications.data else 0
+        users = db.table("users").select("count", count="exact").execute()
+        students = db.table("student_profiles").select("count", count="exact").execute()
+        employers = db.table("employer_profiles").select("count", count="exact").execute()
+        jobs = db.table("jobs").select("count", count="exact").execute()
+        applications = db.table("applications").select("count", count="exact").execute()
         
         return {
             "status": "success",
             "data": {
-                "users": {
-                    "total": total_users,
-                    "students": total_students,
-                    "employers": total_employers
-                },
-                "jobs": {
-                    "total": total_jobs,
-                    "active": total_active
-                },
-                "applications": {
-                    "total": total_applications
-                }
+                "total_users": users.count or 0,
+                "total_students": students.count or 0,
+                "total_employers": employers.count or 0,
+                "total_jobs": jobs.count or 0,
+                "total_applications": applications.count or 0
             }
         }
     except Exception as e:

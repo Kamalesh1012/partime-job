@@ -1,1 +1,3 @@
-"""Routes initialization"""
+"""
+App routes package
+"""

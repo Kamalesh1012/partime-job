@@ -1,7 +1,12 @@
 import axios from 'axios'
 import { useAuthStore } from '../store'
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+const baseURL =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://127.0.0.1:8001/api'
+    : '/api');
 
 const api = axios.create({
   baseURL,

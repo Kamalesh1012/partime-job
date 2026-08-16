@@ -1,6 +1,6 @@
 """
 WorkMate Chennai - Job Portal API
-Main FastAPI application
+Main FastAPI application (Reloaded & Ready)
 """
 import sys
 import os
@@ -89,8 +89,12 @@ app.add_middleware(
     allowed_hosts=[
         "localhost",
         "127.0.0.1",
+        "0.0.0.0",
         "*.netlify.app",
         "*.vercel.app",
+        "*.onrender.com",
+        "*.render.com",
+        "*",
     ],
 )
 

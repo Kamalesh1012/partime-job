@@ -27,9 +27,13 @@ export const useAuthStore = create((set) => ({
   setIsLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),
   logout: () => {
-    // Call backend logout to revoke refresh token and clear cookie
     try {
-      const apiBase = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || ''
+      const apiBase =
+        import.meta.env.VITE_API_BASE_URL ||
+        import.meta.env.VITE_API_URL ||
+        (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+          ? 'http://127.0.0.1:8001/api'
+          : '/api');
       fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {})
     } catch (e) {}
     localStorage.removeItem('token');

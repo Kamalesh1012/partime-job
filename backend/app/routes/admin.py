@@ -89,6 +89,7 @@ async def verify_employer(
         )
 
 
+@router.get("/reports", response_model=dict)
 @router.get("/jobs/reported", response_model=dict)
 async def get_reported_jobs(
     skip: int = Query(0, ge=0),
@@ -101,14 +102,13 @@ async def get_reported_jobs(
     try:
         response = db.table("reports")\
             .select("*, jobs(*)")\
-            .eq("report_type", "job")\
-            .range(skip, skip + limit)\
+            .range(skip, skip + limit - 1)\
             .execute()
         
         return {
             "status": "success",
-            "data": response.data,
-            "total": len(response.data)
+            "data": response.data or [],
+            "total": len(response.data or [])
         }
     except Exception as e:
         raise HTTPException(
@@ -117,29 +117,65 @@ async def get_reported_jobs(
         )
 
 
+@router.post("/reports/{job_id}", response_model=dict)
+async def report_job(
+    job_id: str,
+    reason: str = Query(...),
+    student_id: Optional[str] = Query(None),
+    db = Depends(get_db)
+):
+    """
+    Report a fake or inappropriate job posting
+    """
+    try:
+        res = db.table("reports").insert({
+            "job_id": job_id,
+            "reason": reason,
+            "student_id": student_id,
+            "report_type": "fake_job"
+        }).execute()
+        return {
+            "status": "success",
+            "message": "Job report submitted successfully",
+            "data": res.data[0] if res.data else None
+        }
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.delete("/jobs/{job_id}", response_model=dict)
+async def delete_job_admin(
+    job_id: str,
+    reason: Optional[str] = Query(None),
+    db = Depends(get_db)
+):
+    """
+    Admin removal of a job posting
+    """
+    try:
+        db.table("jobs").update({"is_active": False}).eq("id", job_id).execute()
+        return {
+            "status": "success",
+            "message": f"Job deactivated. Reason: {reason or 'Admin moderation'}"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
 @router.post("/jobs/{job_id}/moderate", response_model=dict)
 async def moderate_job(
     job_id: str,
-    action: str = Query("remove", regex="^(remove|restore)$"),
+    action: str = Query("remove", pattern="^(remove|restore)$"),
     db = Depends(get_db)
 ):
     """
     Take moderation action on a job (admin only)
-    
-    action: 'remove' to deactivate job, 'restore' to reactivate
     """
     try:
         is_active = action != "remove"
-        
         response = db.table("jobs")\
             .update({"is_active": is_active})\
             .eq("id", job_id)\
-            .execute()
-        
-        # Mark report as resolved
-        db.table("reports")\
-            .update({"resolved": True})\
-            .eq("report_id", job_id)\
             .execute()
         
         return {
@@ -154,13 +190,13 @@ async def moderate_job(
         )
 
 
+@router.get("/analytics", response_model=dict)
 @router.get("/statistics", response_model=dict)
 async def get_admin_statistics(db = Depends(get_db)):
     """
     Get platform statistics for admin dashboard
     """
     try:
-        # Get user counts
         users = db.table("users").select("count", count="exact").execute()
         students = db.table("student_profiles").select("count", count="exact").execute()
         employers = db.table("employer_profiles").select("count", count="exact").execute()
