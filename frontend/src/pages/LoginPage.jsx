@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store';
 import './LoginPage.css';
 import {
@@ -15,13 +15,16 @@ const LoginPage = () => {
   const setToken = useAuthStore((state) => state.setToken);
   const setUserType = useAuthStore((state) => state.setUserType);
 
+  const [authMode, setAuthMode] = useState('otp'); // 'otp' | 'password'
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [selectedRole, setSelectedRole] = useState('student');
+  const [selectedRole, setSelectedRole] = useState('worker'); // 'worker' | 'technician' | 'employer' | 'customer'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Handle OAuth redirect / existing Supabase session
   useEffect(() => {
     const checkExistingSession = async () => {
       try {
@@ -31,15 +34,13 @@ const LoginPage = () => {
           setToken(appToken);
           if (result.me) {
             setUser(result.me);
-            setUserType(result.me.role || 'student');
+            setUserType(result.me.role || 'worker');
             redirectByRole(result.me.role);
           } else {
-            navigate('/student-dashboard');
+            navigate('/');
           }
         }
-      } catch (err) {
-        // No existing OAuth session — normal
-      }
+      } catch (err) {}
     };
     checkExistingSession();
   }, []);
@@ -47,10 +48,44 @@ const LoginPage = () => {
   const redirectByRole = (role) => {
     if (role === 'employer') navigate('/employer-dashboard');
     else if (role === 'admin') navigate('/admin-dashboard');
-    else navigate('/student-dashboard');
+    else navigate('/');
   };
 
-  // Email + password login via backend directly
+  // OTP Flow
+  const handleSendOTP = (e) => {
+    e.preventDefault();
+    if (!phone || phone.length < 10) {
+      setError('Please enter a valid 10-digit Indian mobile number.');
+      return;
+    }
+    setError('');
+    setOtpSent(true);
+  };
+
+  const handleVerifyOTP = (e) => {
+    e.preventDefault();
+    if (!otp || otp.length < 4) {
+      setError('Please enter the 4-6 digit OTP sent to your phone.');
+      return;
+    }
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      const fakeToken = `wm-auth-${Date.now()}`;
+      setToken(fakeToken);
+      const fakeUser = {
+        id: `user-${phone.slice(-6)}`,
+        phone: `+91 ${phone}`,
+        full_name: 'WorkMate Partner',
+        role: selectedRole,
+      };
+      setUser(fakeUser);
+      setUserType(selectedRole);
+      redirectByRole(selectedRole);
+    }, 800);
+  };
+
+  // Email + password login
   const handleEmailLogin = async (e) => {
     e.preventDefault();
     setError('');
@@ -60,13 +95,10 @@ const LoginPage = () => {
       if (!email.trim()) throw new Error('Please enter your email address.');
       if (!password) throw new Error('Please enter your password.');
 
-      // Call backend login endpoint directly (no Supabase JS needed)
-      const data = await loginWithBackend(email.trim(), password, selectedRole);
-
+      const data = await loginWithBackend(email.trim(), password, selectedRole === 'customer' || selectedRole === 'technician' ? 'student' : selectedRole);
       const appToken = data.access_token;
       setToken(appToken);
 
-      // Get user profile
       const me = await fetchCurrentUser(appToken);
       if (me) {
         setUser(me);
@@ -77,14 +109,12 @@ const LoginPage = () => {
         redirectByRole(data.role || selectedRole);
       }
     } catch (err) {
-      console.error('Login error:', err);
       setError(err?.message || 'Login failed. Please check your email and password.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Google login
   const handleGoogleLogin = async () => {
     setError('');
     setLoading(true);
@@ -99,91 +129,154 @@ const LoginPage = () => {
   return (
     <div className="login-page">
       <div className="login-container">
-
-        {/* Left Side */}
+        {/* Left Side Branding */}
         <div className="login-info">
-          <h1>Welcome to WorkMate</h1>
-          <p>Find your perfect part-time job in Chennai</p>
+          <div className="platform-tag-pill">🇮🇳 Pan-India Work Network</div>
+          <h1>WorkMate India</h1>
+          <p>The marketplace for part-time gigs, daily wages, and certified doorstep technicians.</p>
           <div className="login-features">
-            <div className="feature"><span className="icon">✓</span><span>Verified part-time opportunities</span></div>
-            <div className="feature"><span className="icon">✓</span><span>Weekend and freelance jobs</span></div>
-            <div className="feature"><span className="icon">✓</span><span>Easy application process</span></div>
-            <div className="feature"><span className="icon">✓</span><span>Real-time notifications</span></div>
+            <div className="feature"><span className="icon">⚡</span><span>Instant local part-time work in your city</span></div>
+            <div className="feature"><span className="icon">🛡️</span><span>24x7 Safety & Emergency SOS Protection</span></div>
+            <div className="feature"><span className="icon">🪪</span><span>Privacy-preserving masked ID verification</span></div>
+            <div className="feature"><span className="icon">💵</span><span>Daily & weekly payout options</span></div>
           </div>
         </div>
 
-        {/* Right Side */}
+        {/* Right Side Form */}
         <div className="login-form-container">
-
-          {/* Role Selection */}
-          <div className="role-selector">
-            <label>
-              <input type="radio" name="role" value="student"
-                checked={selectedRole === 'student'}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                disabled={loading} />
-              👨‍🎓 Student / Job Seeker
-            </label>
-            <label>
-              <input type="radio" name="role" value="employer"
-                checked={selectedRole === 'employer'}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                disabled={loading} />
+          {/* Role Tabs */}
+          <div className="auth-role-tabs">
+            <button
+              className={`role-tab ${selectedRole === 'worker' ? 'active' : ''}`}
+              onClick={() => setSelectedRole('worker')}
+            >
+              🛵 Worker / Gig
+            </button>
+            <button
+              className={`role-tab ${selectedRole === 'technician' ? 'active' : ''}`}
+              onClick={() => setSelectedRole('technician')}
+            >
+              🔧 Technician
+            </button>
+            <button
+              className={`role-tab ${selectedRole === 'employer' ? 'active' : ''}`}
+              onClick={() => setSelectedRole('employer')}
+            >
               💼 Employer
-            </label>
+            </button>
+            <button
+              className={`role-tab ${selectedRole === 'customer' ? 'active' : ''}`}
+              onClick={() => setSelectedRole('customer')}
+            >
+              🏠 Customer
+            </button>
           </div>
 
-          {/* Google Login */}
-          <button type="button" className="google-btn" onClick={handleGoogleLogin} disabled={loading}>
-            {loading ? 'Loading...' : '🔐 Sign in with Google'}
-          </button>
+          {/* Mode Tabs: OTP vs Password */}
+          <div className="auth-mode-switch">
+            <button
+              className={`mode-btn ${authMode === 'otp' ? 'active' : ''}`}
+              onClick={() => setAuthMode('otp')}
+            >
+              📱 Mobile OTP Login
+            </button>
+            <button
+              className={`mode-btn ${authMode === 'password' ? 'active' : ''}`}
+              onClick={() => setAuthMode('password')}
+            >
+              🔑 Email / Password
+            </button>
+          </div>
 
-          <div className="divider">OR</div>
-
-          {/* Error */}
           {error && <div className="error-message">{error}</div>}
 
-          {/* Email Login */}
-          <form onSubmit={handleEmailLogin}>
-            <div className="form-group">
-              <label htmlFor="email">Email</label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                autoComplete="email"
-                required
-                disabled={loading}
-              />
-            </div>
+          {authMode === 'otp' ? (
+            !otpSent ? (
+              <form onSubmit={handleSendOTP} className="login-form">
+                <div className="form-group">
+                  <label>Mobile Number (India +91)</label>
+                  <div className="phone-input-wrap">
+                    <span className="phone-prefix">+91</span>
+                    <input
+                      type="tel"
+                      maxLength="10"
+                      required
+                      placeholder="98401 23456"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                    />
+                  </div>
+                  <small className="form-helper-text">We verify your mobile number via OTP for trusted security.</small>
+                </div>
+                <button type="submit" className="btn btn-primary submit-btn">
+                  Send OTP Verification Code →
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyOTP} className="login-form">
+                <div className="form-group">
+                  <label>Enter 6-Digit OTP sent to +91 {phone}</label>
+                  <input
+                    type="text"
+                    maxLength="6"
+                    required
+                    placeholder="e.g. 123456"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    autoFocus
+                  />
+                  <small className="form-helper-text">Test Demo: Any 6 digits (e.g. 123456) will verify instantly.</small>
+                </div>
+                <button type="submit" className="btn btn-primary submit-btn" disabled={loading}>
+                  {loading ? 'Verifying OTP...' : 'Verify & Sign In ✓'}
+                </button>
+                <button type="button" className="btn-text-resend" onClick={() => setOtpSent(false)}>
+                  ← Change Mobile Number
+                </button>
+              </form>
+            )
+          ) : (
+            <form onSubmit={handleEmailLogin} className="login-form">
+              <div className="form-group">
+                <label>Email Address</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label>Password</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+              <button type="submit" className="btn btn-primary submit-btn" disabled={loading}>
+                {loading ? 'Signing in...' : 'Sign In with Password'}
+              </button>
+            </form>
+          )}
 
-            <div className="form-group">
-              <label htmlFor="password">Password</label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                autoComplete="current-password"
-                required
-                disabled={loading}
-              />
-            </div>
+          <div className="divider"><span>OR</span></div>
 
-            <button type="submit" className="submit-btn" disabled={loading}>
-              {loading ? 'Signing in...' : 'Sign In'}
-            </button>
-          </form>
+          <button
+            type="button"
+            className="btn btn-google"
+            onClick={handleGoogleLogin}
+            disabled={loading}
+          >
+            <span className="google-icon">G</span>
+            <span>Continue with Google</span>
+          </button>
 
-          {/* Sign Up */}
-          <p className="signup-link">
-            Don't have an account?{' '}
-            <a href="/register" onClick={(e) => { e.preventDefault(); navigate('/register'); }}>
-              Create account
-            </a>
+          <p className="register-link">
+            New to WorkMate India? <Link to="/register">Create Free Account</Link>
           </p>
         </div>
       </div>

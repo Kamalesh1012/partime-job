@@ -31,7 +31,6 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('userType');
-      window.location.href = '/login';
     }
     return Promise.reject(error);
   }
@@ -50,13 +49,22 @@ export const authAPI = {
   getCurrentUser: () => api.get('/auth/me'),
 };
 
+// ==================== Pan-India Locations APIs ====================
+
+export const locationsAPI = {
+  getStates: () => api.get('/locations/states'),
+  getDistricts: (state) => api.get('/locations/districts', { params: { state } }),
+  getPopularCities: () => api.get('/locations/popular'),
+  searchLocation: (query) => api.get('/locations/search', { params: { q: query } }),
+};
+
 // ==================== Jobs APIs ====================
 
 export const jobsAPI = {
   getJobs: (filters = {}) => api.get('/jobs', { params: filters }),
   getTrendingJobs: (limit = 10) => api.get('/jobs/trending', { params: { limit } }),
-  searchJobs: (query, skip = 0, limit = 20) =>
-    api.get('/jobs/search', { params: { q: query, skip, limit } }),
+  searchJobs: (query, city = '', state = '', skip = 0, limit = 20) =>
+    api.get('/jobs/search', { params: { q: query, city, state, skip, limit } }),
   getJobDetails: (jobId) => api.get(`/jobs/${jobId}`),
   createJob: (jobData, employerId) =>
     api.post('/jobs', jobData, { headers: { 'X-Employer-ID': employerId } }),
@@ -64,6 +72,57 @@ export const jobsAPI = {
     api.put(`/jobs/${jobId}`, jobData, { headers: { 'X-Employer-ID': employerId } }),
   deleteJob: (jobId, employerId) =>
     api.delete(`/jobs/${jobId}`, { headers: { 'X-Employer-ID': employerId } }),
+};
+
+// ==================== Technician & Home Services APIs ====================
+
+export const servicesAPI = {
+  getCategories: () => api.get('/services/categories'),
+  getTechnicians: (params = {}) => api.get('/services/technicians', { params }),
+  getTechnicianDetail: (techId) => api.get(`/services/technicians/${techId}`),
+  bookService: (bookingData) => api.post('/services/book', bookingData),
+  getCustomerRequests: (customerId) => api.get(`/services/requests/customer/${customerId}`),
+  updateRequestStatus: (requestId, status) =>
+    api.put(`/services/requests/${requestId}/status`, { status }),
+  submitReview: (reviewData) => api.post('/services/reviews', reviewData),
+};
+
+// ==================== Emergency Safety & SOS APIs ====================
+
+export const safetyAPI = {
+  getHelplines: () => api.get('/safety/helplines'),
+  getEmergencyContacts: (userId) => api.get(`/safety/emergency-contacts/${userId}`),
+  addEmergencyContact: (contactData) => api.post('/safety/emergency-contacts', contactData),
+  deleteEmergencyContact: (contactId) => api.delete(`/safety/emergency-contacts/${contactId}`),
+  triggerSOS: (payload) => api.post('/safety/sos/trigger', payload),
+  cancelSOS: (payload) => api.post('/safety/sos/cancel', payload),
+  getUserIncidents: (userId) => api.get(`/safety/incidents/user/${userId}`),
+};
+
+// ==================== Active Jobs Live Tracking APIs ====================
+
+export const activeJobsAPI = {
+  createActiveJob: (data) => api.post('/active-jobs', data),
+  getUserActiveJobs: (userId) => api.get(`/active-jobs/user/${userId}`),
+  getActiveJobDetail: (activeJobId) => api.get(`/active-jobs/${activeJobId}`),
+  updateActiveJobStatus: (activeJobId, status, coords = {}) =>
+    api.put(`/active-jobs/${activeJobId}/status`, { status, ...coords }),
+};
+
+// ==================== Verification APIs ====================
+
+export const verificationAPI = {
+  submitAadhaarKYC: (userId, maskedId) =>
+    api.post('/profiles/verify/aadhaar-kyc', {
+      user_id: userId,
+      masked_id_number: maskedId,
+      consent_given: true,
+    }),
+  submitFaceLiveness: (userId) =>
+    api.post('/profiles/verify/face-liveness', {
+      user_id: userId,
+      consent_given: true,
+    }),
 };
 
 // ==================== Applications APIs ====================
@@ -92,6 +151,9 @@ export const profilesAPI = {
   getEmployerProfile: (userId) => api.get(`/profiles/employer/${userId}`),
   updateEmployerProfile: (userId, profileData) =>
     api.put(`/profiles/employer/${userId}`, profileData),
+  getTechnicianProfile: (userId) => api.get(`/profiles/technician/${userId}`),
+  updateTechnicianProfile: (userId, profileData) =>
+    api.put(`/profiles/technician/${userId}`, profileData),
   getEmployerStats: (userId) => api.get(`/profiles/employer/${userId}/stats`),
   saveJob: (jobId, studentId) =>
     api.post(`/profiles/saved-jobs/${jobId}`, { student_id: studentId }),

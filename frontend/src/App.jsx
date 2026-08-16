@@ -3,6 +3,8 @@ import './App.css';
 
 // Pages
 import HomePage from './pages/HomePage';
+import ServicesPage from './pages/ServicesPage';
+import ActivityPage from './pages/ActivityPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import StudentDashboard from './pages/StudentDashboard';
@@ -14,11 +16,14 @@ import AdminDashboard from './pages/AdminDashboard';
 // Components
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import BottomNav from './components/BottomNav';
+import LocationSelectorModal from './components/LocationSelectorModal';
+import SOSModal from './components/SOSModal';
 
 // Theme
 import { useTheme } from './hooks/useTheme';
 
-// Auth store — single source of truth
+// Auth store
 import { useAuthStore } from './store';
 
 function App() {
@@ -28,11 +33,9 @@ function App() {
   const { isDarkMode, toggleTheme } = useTheme();
 
   const isLoggedIn = !!token;
+  const setIsLoggedIn = () => {};
 
-  // Helper: set login state from child pages
-  const setIsLoggedIn = () => {}; // no-op, store handles it
-
-  // Protected route
+  // Protected route helper
   const PrivateRoute = ({ children, role }) => {
     if (!isLoggedIn) return <Navigate to="/login" replace />;
     if (role && userType !== role) return <Navigate to="/" replace />;
@@ -50,14 +53,23 @@ function App() {
           toggleTheme={toggleTheme}
         />
 
+        {/* Global Pan-India Location Selector Modal */}
+        <LocationSelectorModal />
+
+        {/* Global 24x7 Safety & Emergency SOS Modal */}
+        <SOSModal />
+
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/jobs" element={<HomePage />} />
+          <Route path="/services" element={<ServicesPage />} />
+          <Route path="/activity" element={<ActivityPage />} />
           <Route path="/login" element={<LoginPage setIsLoggedIn={setIsLoggedIn} setUserType={setUserType} />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/jobs/:id" element={<JobDetailsPage />} />
           <Route path="/profile" element={<ProfilePage userType={userType} />} />
 
-          {/* Student Routes */}
+          {/* Role Dashboard Routes */}
           <Route
             path="/student-dashboard"
             element={
@@ -66,8 +78,6 @@ function App() {
               </PrivateRoute>
             }
           />
-
-          {/* Employer Routes */}
           <Route
             path="/employer-dashboard"
             element={
@@ -76,8 +86,6 @@ function App() {
               </PrivateRoute>
             }
           />
-
-          {/* Admin Routes */}
           <Route
             path="/admin-dashboard"
             element={
@@ -92,6 +100,9 @@ function App() {
         </Routes>
 
         <Footer />
+
+        {/* Mobile First Bottom Navigation Bar */}
+        <BottomNav />
       </div>
     </BrowserRouter>
   );

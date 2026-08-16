@@ -34,12 +34,43 @@ export const useAuthStore = create((set) => ({
         (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
           ? 'http://127.0.0.1:8001/api'
           : '/api');
-      fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {})
+      fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
     } catch (e) {}
     localStorage.removeItem('token');
     localStorage.removeItem('userType');
     set({ user: null, token: null, userType: null });
   },
+}));
+
+export const useLocationStore = create((set) => ({
+  selectedCity: localStorage.getItem('workmate_city') || 'Chennai',
+  selectedState: localStorage.getItem('workmate_state') || 'Tamil Nadu',
+  selectedArea: localStorage.getItem('workmate_area') || '',
+  radiusKm: Number(localStorage.getItem('workmate_radius')) || 10,
+  isLocationModalOpen: false,
+
+  setLocation: (city, state, area = '') => {
+    localStorage.setItem('workmate_city', city);
+    localStorage.setItem('workmate_state', state);
+    if (area) localStorage.setItem('workmate_area', area);
+    set({ selectedCity: city, selectedState: state, selectedArea: area });
+  },
+  setRadiusKm: (radiusKm) => {
+    localStorage.setItem('workmate_radius', radiusKm);
+    set({ radiusKm });
+  },
+  openLocationModal: () => set({ isLocationModalOpen: true }),
+  closeLocationModal: () => set({ isLocationModalOpen: false }),
+}));
+
+export const useSafetyStore = create((set) => ({
+  isSOSModalOpen: false,
+  emergencyContacts: [],
+  activeJobContext: null,
+
+  openSOSModal: (jobContext = null) => set({ isSOSModalOpen: true, activeJobContext: jobContext }),
+  closeSOSModal: () => set({ isSOSModalOpen: false, activeJobContext: null }),
+  setEmergencyContacts: (contacts) => set({ emergencyContacts: contacts }),
 }));
 
 export const useJobStore = create((set) => ({
@@ -50,8 +81,12 @@ export const useJobStore = create((set) => ({
   error: null,
   filters: {
     category: null,
-    location: null,
+    city: null,
+    state: null,
     jobType: null,
+    shift: null,
+    isUrgent: null,
+    isWeekend: null,
     salaryMin: null,
     salaryMax: null,
     searchQuery: null,
@@ -67,8 +102,12 @@ export const useJobStore = create((set) => ({
     set({
       filters: {
         category: null,
-        location: null,
+        city: null,
+        state: null,
         jobType: null,
+        shift: null,
+        isUrgent: null,
+        isWeekend: null,
         salaryMin: null,
         salaryMax: null,
         searchQuery: null,
@@ -100,20 +139,19 @@ export const useNotificationStore = create((set) => ({
   isLoading: false,
   error: null,
 
-  setNotifications: (notifications) => set({ notifications }),
-  setUnreadCount: (count) => set({ unreadCount: count }),
-  setIsLoading: (isLoading) => set({ isLoading }),
-  setError: (error) => set({ error }),
-  addNotification: (notification) =>
-    set((state) => ({
-      notifications: [notification, ...state.notifications],
-      unreadCount: state.unreadCount + 1,
-    })),
+  setNotifications: (notifications) =>
+    set({
+      notifications,
+      unreadCount: notifications.filter((n) => !n.is_read).length,
+    }),
   markAsRead: (notificationId) =>
-    set((state) => ({
-      notifications: state.notifications.map((n) =>
+    set((state) => {
+      const updated = state.notifications.map((n) =>
         n.id === notificationId ? { ...n, is_read: true } : n
-      ),
-      unreadCount: Math.max(0, state.unreadCount - 1),
-    })),
+      );
+      return {
+        notifications: updated,
+        unreadCount: updated.filter((n) => !n.is_read).length,
+      };
+    }),
 }));

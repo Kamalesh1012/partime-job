@@ -1,6 +1,6 @@
 """
-WorkMate Chennai - Job Portal API
-Main FastAPI application (Reloaded & Ready)
+WorkMate India - Part-Time Jobs & Local Services Platform API
+Main FastAPI Application
 """
 import sys
 import os
@@ -12,10 +12,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from dotenv import load_dotenv
 
-# Ensure the project root AND backend dir are on sys.path
-# so imports work both locally (from project root) and on Vercel (from /var/task/)
-_this_dir = Path(__file__).resolve().parent  # backend/
-_project_root = _this_dir.parent  # job portal/
+# Ensure project root and backend dir are on sys.path
+_this_dir = Path(__file__).resolve().parent
+_project_root = _this_dir.parent
 
 for p in [str(_project_root), str(_this_dir)]:
     if p not in sys.path:
@@ -28,28 +27,32 @@ load_dotenv(_project_root / ".env")
 # Import application settings
 from app.core.config import settings
 
-# Import routers - use app.routes for consistency and Vercel compatibility
+# Import routers
 from app.routes import auth
+from app.routes import jobs
 from app.routes import applications
 from app.routes import profiles
 from app.routes import notifications
-from app.routes import jobs
 from app.routes import admin
+from app.routes import locations
+from app.routes import services
+from app.routes import safety
+from app.routes import active_jobs
 
 
 # Lifespan context
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("WorkMate Chennai API Starting...")
+    print("WorkMate India API Starting...")
     yield
-    print("WorkMate Chennai API Shutting down...")
+    print("WorkMate India API Shutting down...")
 
 
 # Create FastAPI app
 app = FastAPI(
-    title="WorkMate Chennai",
-    description="Job portal API for students and employers in Chennai",
-    version="1.0.0",
+    title="WorkMate India",
+    description="Pan-India Part-Time Jobs, Gig Work, Technicians & Local Home Services Platform API",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -65,11 +68,11 @@ frontend_url = (
 origins = [
     "http://localhost:5173",
     "http://localhost:3000",
+    "http://127.0.0.1:5173",
     "https://bucolic-sunflower-10231c.netlify.app",
     frontend_url,
 ]
 
-# Remove duplicates
 origins = list(dict.fromkeys(origins))
 
 app.add_middleware(
@@ -108,9 +111,33 @@ app.include_router(
 )
 
 app.include_router(
+    locations.router,
+    prefix="/api/locations",
+    tags=["Locations & Pan-India Search"],
+)
+
+app.include_router(
     jobs.router,
     prefix="/api/jobs",
-    tags=["Jobs"],
+    tags=["Jobs & Part-Time Gigs"],
+)
+
+app.include_router(
+    services.router,
+    prefix="/api/services",
+    tags=["Technicians & Home Services"],
+)
+
+app.include_router(
+    safety.router,
+    prefix="/api/safety",
+    tags=["Emergency Safety & SOS"],
+)
+
+app.include_router(
+    active_jobs.router,
+    prefix="/api/active-jobs",
+    tags=["Active Jobs Tracking"],
 )
 
 app.include_router(
@@ -122,13 +149,7 @@ app.include_router(
 app.include_router(
     profiles.router,
     prefix="/api/profiles",
-    tags=["Profiles"],
-)
-
-app.include_router(
-    admin.router,
-    prefix="/api/admin",
-    tags=["Admin"],
+    tags=["Profiles & Verification"],
 )
 
 app.include_router(
@@ -137,28 +158,33 @@ app.include_router(
     tags=["Notifications"],
 )
 
+app.include_router(
+    admin.router,
+    prefix="/api/admin",
+    tags=["Admin & Moderation"],
+)
 
-# ==================== HEALTH CHECK ====================
+
+# ==================== HEALTH & ROOT ====================
 
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "service": "WorkMate Chennai API",
-        "version": "1.0.0",
+        "service": "WorkMate India API",
+        "version": "2.0.0",
     }
 
-
-# ==================== ROOT ====================
 
 @app.get("/", tags=["Root"])
 async def root():
     """Root endpoint."""
     return {
-        "message": "Welcome to WorkMate Chennai API",
+        "message": "Welcome to WorkMate India – Part-Time Jobs & Local Services API",
         "docs": "/docs",
         "openapi": "/openapi.json",
+        "version": "2.0.0"
     }
 
 
@@ -170,6 +196,6 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8000,
+        port=8001,
         reload=True,
     )

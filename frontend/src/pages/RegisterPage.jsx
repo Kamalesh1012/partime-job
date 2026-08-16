@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store';
 import { registerWithBackend, fetchCurrentUser } from '../services/auth';
+import { ALL_INDIAN_STATES } from '../data/indiaLocations';
 import './LoginPage.css';
 
 const RegisterPage = () => {
@@ -10,53 +11,55 @@ const RegisterPage = () => {
   const setToken = useAuthStore((state) => state.setToken);
   const setUserType = useAuthStore((state) => state.setUserType);
 
+  const [step, setStep] = useState(1); // 1: Mobile & OTP, 2: Profile & Location, 3: KYC Consent
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [selectedRole, setSelectedRole] = useState('student');
+  const [selectedRole, setSelectedRole] = useState('worker'); // 'worker' | 'technician' | 'employer' | 'customer'
+  const [stateName, setStateName] = useState('Tamil Nadu');
+  const [city, setCity] = useState('Chennai');
+  const [pinCode, setPinCode] = useState('600001');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
-  const handleRegister = async (e) => {
+  const handleSendOTP = (e) => {
+    e.preventDefault();
+    if (!phone || phone.length < 10) {
+      setError('Please enter a valid 10-digit Indian phone number.');
+      return;
+    }
+    setError('');
+    setStep(2);
+  };
+
+  const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
     setLoading(true);
 
     try {
-      if (!email.trim()) throw new Error('Please enter your email address.');
-      if (!password) throw new Error('Please enter a password.');
-      if (password.length < 6) throw new Error('Password must be at least 6 characters.');
-      if (password !== confirmPassword) throw new Error('Passwords do not match.');
+      if (!fullName.trim()) throw new Error('Please enter your full name.');
+      if (!email.trim()) throw new Error('Please enter your email.');
+      if (!password || password.length < 6) throw new Error('Password must be at least 6 characters.');
 
-      // Register via backend (handles Supabase + users table in one step)
-      const data = await registerWithBackend(email.trim(), password, selectedRole, fullName.trim());
+      const backendRole = selectedRole === 'employer' ? 'employer' : 'student';
+      const data = await registerWithBackend(email.trim(), password, backendRole, fullName.trim());
 
-      // Backend returns a token immediately — log user in now
       if (data?.access_token) {
         setToken(data.access_token);
         const me = await fetchCurrentUser(data.access_token);
         if (me) {
           setUser(me);
-          setUserType(me.role || selectedRole);
+          setUserType(selectedRole);
         } else {
-          setUserType(data.role || selectedRole);
+          setUserType(selectedRole);
         }
-
-        if (data.needs_email_confirmation) {
-          setSuccess('Account created! Please check your email to confirm. Redirecting to dashboard…');
-          setTimeout(() => {
-            navigate(selectedRole === 'employer' ? '/employer-dashboard' : '/student-dashboard');
-          }, 2000);
-        } else {
-          navigate(selectedRole === 'employer' ? '/employer-dashboard' : '/student-dashboard');
-        }
+        navigate(selectedRole === 'employer' ? '/employer-dashboard' : '/');
       }
     } catch (err) {
-      console.error('Registration error:', err);
-      setError(err?.message || 'Registration failed. Please try again.');
+      setError(err?.message || 'Registration failed.');
     } finally {
       setLoading(false);
     }
@@ -65,115 +68,153 @@ const RegisterPage = () => {
   return (
     <div className="login-page">
       <div className="login-container">
-
         {/* Left Side */}
         <div className="login-info">
-          <h1>Join WorkMate</h1>
-          <p>Create your free account and start finding part-time jobs in Chennai.</p>
+          <div className="platform-tag-pill">🇮🇳 Join WorkMate India</div>
+          <h1>Find Work & Hire Locally</h1>
+          <p>Sign up in under 60 seconds to access part-time jobs and verified local home services across India.</p>
           <div className="login-features">
-            <div className="feature"><span className="icon">✓</span><span>Free to register</span></div>
-            <div className="feature"><span className="icon">✓</span><span>Verified job listings</span></div>
-            <div className="feature"><span className="icon">✓</span><span>Direct employer contact</span></div>
-            <div className="feature"><span className="icon">✓</span><span>Real-time notifications</span></div>
+            <div className="feature"><span className="icon">✓</span><span>Free to join for workers & customers</span></div>
+            <div className="feature"><span className="icon">✓</span><span>Direct doorstep booking & hourly gigs</span></div>
+            <div className="feature"><span className="icon">✓</span><span>24x7 Safety & SOS Emergency Network</span></div>
+            <div className="feature"><span className="icon">✓</span><span>Transparent pay & trusted badge ratings</span></div>
           </div>
         </div>
 
         {/* Right Side */}
         <div className="login-form-container">
-          <h2 style={{ marginBottom: '1rem', textAlign: 'center' }}>Create Account</h2>
+          <h2 style={{ marginBottom: '0.5rem', textAlign: 'center' }}>Create Account</h2>
+          <p style={{ textAlign: 'center', fontSize: '0.85rem', color: '#64748b', marginBottom: '1.25rem' }}>
+            Step {step} of 2 – {step === 1 ? 'Mobile Verification' : 'Profile & Location'}
+          </p>
 
-          {/* Role Selection */}
-          <div className="role-selector">
-            <label>
-              <input type="radio" name="role" value="student"
-                checked={selectedRole === 'student'}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                disabled={loading} />
-              👨‍🎓 Student / Job Seeker
-            </label>
-            <label>
-              <input type="radio" name="role" value="employer"
-                checked={selectedRole === 'employer'}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                disabled={loading} />
+          {/* Role Selector */}
+          <div className="auth-role-tabs">
+            <button
+              className={`role-tab ${selectedRole === 'worker' ? 'active' : ''}`}
+              onClick={() => setSelectedRole('worker')}
+            >
+              🛵 Worker
+            </button>
+            <button
+              className={`role-tab ${selectedRole === 'technician' ? 'active' : ''}`}
+              onClick={() => setSelectedRole('technician')}
+            >
+              🔧 Technician
+            </button>
+            <button
+              className={`role-tab ${selectedRole === 'employer' ? 'active' : ''}`}
+              onClick={() => setSelectedRole('employer')}
+            >
               💼 Employer
-            </label>
+            </button>
+            <button
+              className={`role-tab ${selectedRole === 'customer' ? 'active' : ''}`}
+              onClick={() => setSelectedRole('customer')}
+            >
+              🏠 Customer
+            </button>
           </div>
 
-          {/* Messages */}
           {error && <div className="error-message">{error}</div>}
-          {success && (
-            <div className="error-message" style={{ background: '#d4edda', color: '#155724', borderColor: '#c3e6cb' }}>
-              {success}
-            </div>
+
+          {step === 1 ? (
+            <form onSubmit={handleSendOTP} className="login-form">
+              <div className="form-group">
+                <label>Mobile Number (India +91)</label>
+                <div className="phone-input-wrap">
+                  <span className="phone-prefix">+91</span>
+                  <input
+                    type="tel"
+                    maxLength="10"
+                    required
+                    placeholder="98401 23456"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                  />
+                </div>
+                <small className="form-helper-text">
+                  We verify your phone number to keep the community safe and stop fake profiles.
+                </small>
+              </div>
+
+              <button type="submit" className="btn btn-primary submit-btn">
+                Next: Enter Profile Details →
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleRegisterSubmit} className="login-form">
+              <div className="form-group">
+                <label>Full Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Ramesh Kumar"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Email Address</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+
+              <div className="form-cols-2-auth">
+                <div className="form-group">
+                  <label>State / UT</label>
+                  <select value={stateName} onChange={(e) => setStateName(e.target.value)}>
+                    {ALL_INDIAN_STATES.map((st) => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>City / District</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Chennai / Bengaluru"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Password (min 6 chars)</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+
+              <div className="privacy-consent-box">
+                <span className="p-shield">🛡️</span>
+                <span>By registering, you agree to WorkMate India terms and our privacy-first data protection guidelines.</span>
+              </div>
+
+              <button type="submit" className="btn btn-primary submit-btn" disabled={loading}>
+                {loading ? 'Creating Account...' : 'Complete Free Registration ✓'}
+              </button>
+
+              <button type="button" className="btn-text-resend" onClick={() => setStep(1)}>
+                ← Back to Mobile Number
+              </button>
+            </form>
           )}
 
-          {/* Register Form */}
-          <form onSubmit={handleRegister}>
-            <div className="form-group">
-              <label htmlFor="reg-name">Full Name</label>
-              <input
-                id="reg-name"
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Your full name"
-                disabled={loading}
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="reg-email">Email</label>
-              <input
-                id="reg-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                autoComplete="email"
-                required
-                disabled={loading}
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="reg-password">Password</label>
-              <input
-                id="reg-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min 6 characters"
-                autoComplete="new-password"
-                required
-                disabled={loading}
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="reg-confirm">Confirm Password</label>
-              <input
-                id="reg-confirm"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Re-enter password"
-                autoComplete="new-password"
-                required
-                disabled={loading}
-              />
-            </div>
-
-            <button type="submit" className="submit-btn" disabled={loading}>
-              {loading ? 'Creating Account...' : 'Create Account'}
-            </button>
-          </form>
-
-          <p className="signup-link">
-            Already have an account?{' '}
-            <a href="/login" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>
-              Sign in here
-            </a>
+          <p className="register-link">
+            Already have an account? <Link to="/login">Sign In</Link>
           </p>
         </div>
       </div>

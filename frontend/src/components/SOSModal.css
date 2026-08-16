@@ -1,0 +1,338 @@
+.sos-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+.sos-modal-card {
+  background: var(--card-bg, #ffffff);
+  color: var(--text-color, #0f172a);
+  border-radius: 1.25rem;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px -12px rgba(225, 29, 72, 0.35);
+  border: 2px solid #fda4af;
+  overflow: hidden;
+}
+
+.sos-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1.25rem 1.5rem;
+  background: #fff1f2;
+  border-bottom: 1px solid #fecdd3;
+}
+
+.sos-header-icon {
+  font-size: 2rem;
+  animation: pulseIcon 1.5s infinite;
+}
+
+@keyframes pulseIcon {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.sos-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #9f1239;
+}
+
+.sos-subtitle {
+  margin: 0.1rem 0 0;
+  font-size: 0.8rem;
+  color: #be123c;
+}
+
+.sos-close-btn {
+  margin-left: auto;
+  background: rgba(0, 0, 0, 0.05);
+  border: none;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+.sos-modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+  text-align: center;
+}
+
+/* Countdown View */
+.sos-countdown-circle {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: #e11d48;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0.5rem auto 1.25rem;
+  box-shadow: 0 0 0 10px rgba(225, 29, 72, 0.2);
+  animation: rippleGlow 1s infinite alternate;
+}
+
+@keyframes rippleGlow {
+  from { box-shadow: 0 0 0 6px rgba(225, 29, 72, 0.2); }
+  to { box-shadow: 0 0 0 16px rgba(225, 29, 72, 0.4); }
+}
+
+.countdown-number {
+  font-size: 2.75rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.countdown-text {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.9;
+}
+
+.sos-alert-text {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #881337;
+  margin: 0 0 0.5rem;
+}
+
+.sos-alert-desc {
+  font-size: 0.9rem;
+  color: var(--text-muted, #64748b);
+  line-height: 1.45;
+  margin: 0 0 1.5rem;
+}
+
+.sos-countdown-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sos-cancel-btn {
+  background: #10b981;
+  color: #ffffff;
+  border: none;
+  padding: 0.85rem 1.25rem;
+  border-radius: 0.75rem;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sos-cancel-btn:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+.sos-trigger-now-btn {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+  padding: 0.65rem 1.25rem;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Triggered View */
+.sos-success-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 800;
+  font-size: 0.85rem;
+  padding: 0.4rem 1rem;
+  border-radius: 2rem;
+  margin-bottom: 1rem;
+}
+
+.badge-icon {
+  background: #e11d48;
+  color: white;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+}
+
+.case-id-box {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 0.75rem;
+  padding: 0.85rem;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.case-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.case-number {
+  font-size: 1.25rem;
+  color: #0f172a;
+  letter-spacing: 0.05em;
+  font-family: monospace;
+}
+
+.case-sub {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.sos-location-info {
+  font-size: 0.85rem;
+  color: #334155;
+  margin-bottom: 1.25rem;
+}
+
+.helpline-call-group h4 {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text-color, #0f172a);
+  text-align: left;
+}
+
+.helpline-buttons-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.helpline-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.65rem;
+  text-decoration: none;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  transition: all 0.2s;
+}
+
+.helpline-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.primary-112 {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.police-100 {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+.medical-108 {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #15803d;
+}
+
+.women-1091 {
+  background: #fdf2f8;
+  border-color: #f472b6;
+  color: #be185d;
+}
+
+.hl-icon {
+  font-size: 1.25rem;
+}
+
+.hl-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.hl-info strong {
+  font-size: 0.85rem;
+}
+
+.hl-info span {
+  font-size: 0.7rem;
+  opacity: 0.85;
+}
+
+.sos-bottom-actions {
+  margin-top: 1.25rem;
+}
+
+.sos-resolved-btn {
+  width: 100%;
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 0.75rem;
+  border-radius: 0.65rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Cancelled View */
+.sos-cancel-icon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+}
+
+.sos-close-confirm-btn {
+  margin-top: 1rem;
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 0.65rem 1.5rem;
+  border-radius: 0.65rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sos-modal-footer {
+  padding: 0.75rem 1.25rem;
+  background: var(--footer-bg, #f8fafc);
+  border-top: 1px solid var(--border-color, #e2e8f0);
+  font-size: 0.75rem;
+  color: var(--text-muted, #64748b);
+  line-height: 1.35;
+}
