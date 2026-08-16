@@ -131,11 +131,11 @@ const LoginPage = () => {
       <div className="login-container">
         {/* Left Side Branding */}
         <div className="login-info">
-          <div className="platform-tag-pill">🇮🇳 Available Across India</div>
+          <div className="platform-tag-pill">Available Across India</div>
           <div className="auth-logo-header">
             <img src="/sewaa-logo.png" alt="SEWAA Logo" className="auth-brand-logo" />
             <div>
-              <h1>SEWAA India</h1>
+              <h1>SEWAA</h1>
               <p className="auth-brand-sub">Part-Time Jobs & Local Services</p>
             </div>
           </div>

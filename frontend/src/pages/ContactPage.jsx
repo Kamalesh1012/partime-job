@@ -27,7 +27,7 @@ export default function ContactPage() {
         {/* Header */}
         <div className="contact-header">
           <img src="/sewaa-logo.png" alt="SEWAA Logo" className="contact-logo" />
-          <h1>Contact SEWAA India</h1>
+          <h1>Contact SEWAA</h1>
           <p>We're here to help workers, technicians, employers, and customers across India.</p>
         </div>
 

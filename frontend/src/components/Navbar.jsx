@@ -27,7 +27,6 @@ const Navbar = ({ isLoggedIn, setIsLoggedIn, userType, isDarkMode, toggleTheme }
             <div className="logo-text-block">
               <div className="logo-title-row">
                 <span className="logo-text">SEWAA</span>
-                <span className="india-badge">🇮🇳</span>
               </div>
               <span className="logo-subtext">Part-Time Jobs & Local Services</span>
             </div>

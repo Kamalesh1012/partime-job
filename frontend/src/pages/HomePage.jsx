@@ -355,9 +355,9 @@ const HomePage = () => {
         )}
       </main>
 
-      {/* SEWAA Slogan Banner (Replaces SOS Banner) */}
+      {/* SEWAA Slogan Banner */}
       <section className="sewaa-slogan-banner">
-        <div className="slogan-badge">🇮🇳 SEWAA INDIA</div>
+        <div className="slogan-badge">SEWAA</div>
         <h2 className="slogan-title">Your Work. Your Service. Your SEWAA.</h2>
         <p className="slogan-sub">
           Find flexible work and trusted local professionals, wherever you are in India.

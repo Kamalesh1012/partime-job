@@ -43,15 +43,15 @@ from app.routes import active_jobs
 # Lifespan context
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("SEWAA India API Starting...")
+    print("SEWAA API Starting...")
     yield
-    print("SEWAA India API Shutting down...")
+    print("SEWAA API Shutting down...")
 
 
 # Create FastAPI app
 app = FastAPI(
-    title="SEWAA India",
-    description="Pan-India Part-Time Jobs, Events, Technicians & Local Home Services Platform API",
+    title="SEWAA",
+    description="Part-Time Jobs, Events, Technicians & Local Home Services Platform API",
     version="2.1.0",
     lifespan=lifespan,
 )
@@ -151,7 +151,7 @@ async def health_check():
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "service": "SEWAA India API",
+        "service": "SEWAA API",
         "version": "2.1.0",
     }
 
@@ -160,7 +160,7 @@ async def health_check():
 async def root():
     """Root endpoint."""
     return {
-        "message": "Welcome to SEWAA India – Part-Time Jobs, Events & Local Services API",
+        "message": "Welcome to SEWAA – Part-Time Jobs, Events & Local Services API",
         "docs": "/docs",
         "openapi": "/openapi.json",
         "version": "2.1.0"

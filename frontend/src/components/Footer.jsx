@@ -13,7 +13,7 @@ const Footer = () => {
           <div className="footer-brand-row">
             <img src="/sewaa-logo.png" alt="SEWAA Logo" className="footer-sewaa-logo" />
             <div>
-              <h3 className="footer-brand-title">SEWAA 🇮🇳</h3>
+              <h3 className="footer-brand-title">SEWAA</h3>
               <span className="footer-brand-sub">Part-Time Jobs & Local Services</span>
             </div>
           </div>
@@ -54,7 +54,7 @@ const Footer = () => {
           </ul>
         </div>
 
-        {/* For Customers (Replaces For Employers) */}
+        {/* For Customers */}
         <div className="footer-section">
           <h3>For Customers</h3>
           <ul>
@@ -78,7 +78,7 @@ const Footer = () => {
 
       {/* Footer Bottom */}
       <div className="footer-bottom">
-        <p>&copy; {currentYear} SEWAA India. All rights reserved.</p>
+        <p>&copy; {currentYear} SEWAA. All rights reserved.</p>
         <div className="footer-links">
           <a href="#terms">Terms of Service</a>
           <span> | </span>

@@ -70,11 +70,11 @@ const RegisterPage = () => {
       <div className="login-container">
         {/* Left Side */}
         <div className="login-info">
-          <div className="platform-tag-pill">🇮🇳 Join SEWAA India</div>
+          <div className="platform-tag-pill">Join SEWAA</div>
           <div className="auth-logo-header">
             <img src="/sewaa-logo.png" alt="SEWAA Logo" className="auth-brand-logo" />
             <div>
-              <h1>SEWAA India</h1>
+              <h1>SEWAA</h1>
               <p className="auth-brand-sub">Part-Time Jobs & Local Services</p>
             </div>
           </div>
