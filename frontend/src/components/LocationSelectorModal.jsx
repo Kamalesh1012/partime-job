@@ -1,6 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLocationStore } from '../store';
-import { POPULAR_INDIAN_CITIES, ALL_INDIAN_STATES, DISTRICT_TALUK_DATA } from '../data/indiaLocations';
+import {
+  POPULAR_INDIAN_CITIES,
+  ALL_INDIAN_STATES,
+  ALL_INDIAN_DISTRICTS,
+  DISTRICT_TALUK_DATA
+} from '../data/indiaLocations';
 import './LocationSelectorModal.css';
 
 export default function LocationSelectorModal() {
@@ -16,10 +21,9 @@ export default function LocationSelectorModal() {
   } = useLocationStore();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('popular'); // 'popular' | 'state_drilldown'
+  const [activeTab, setActiveTab] = useState('popular'); // 'popular' | 'all_districts'
   const [selectedStateFilter, setSelectedStateFilter] = useState(selectedState || 'Tamil Nadu');
-  const [selectedDistrictFilter, setSelectedDistrictFilter] = useState('Chengalpattu');
-  const [selectedTalukFilter, setSelectedTalukFilter] = useState('Sholinganallur');
+  const [selectedDistrictFilter, setSelectedDistrictFilter] = useState(selectedCity || 'Chennai');
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
 
   if (!isLocationModalOpen) return null;
@@ -96,17 +100,69 @@ export default function LocationSelectorModal() {
     }
   };
 
-  const filteredCities = POPULAR_INDIAN_CITIES.filter(
-    (c) =>
-      c.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.state.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (c.locality && c.locality.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (c.taluk && c.taluk.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  // Comprehensive search across all 786 districts, states, and hubs
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const query = searchQuery.trim().toLowerCase();
+    const results = [];
 
-  const districtsForState = DISTRICT_TALUK_DATA[selectedStateFilter] || {};
-  const districtKeys = Object.keys(districtsForState);
-  const currentDistrictData = districtsForState[selectedDistrictFilter] || { taluks: [], localities: [] };
+    // Search popular hubs
+    POPULAR_INDIAN_CITIES.forEach((c) => {
+      if (
+        c.city.toLowerCase().includes(query) ||
+        c.state.toLowerCase().includes(query) ||
+        (c.taluk && c.taluk.toLowerCase().includes(query))
+      ) {
+        results.push({
+          name: c.taluk ? `${c.taluk}, ${c.city}` : c.city,
+          city: c.city,
+          state: c.state,
+          area: c.taluk || c.locality || '',
+          tag: c.tag || 'Popular Hub'
+        });
+      }
+    });
+
+    // Search all 786 Indian districts
+    Object.entries(ALL_INDIAN_DISTRICTS).forEach(([state, dists]) => {
+      if (state.toLowerCase().includes(query)) {
+        results.push({
+          name: state,
+          city: dists[0] || state,
+          state: state,
+          area: '',
+          tag: `State / UT (${dists.length} Districts)`
+        });
+      }
+      dists.forEach((dist) => {
+        if (dist.toLowerCase().includes(query)) {
+          results.push({
+            name: dist,
+            city: dist,
+            state: state,
+            area: '',
+            tag: `District in ${state}`
+          });
+        }
+      });
+    });
+
+    // Remove duplicates
+    const unique = [];
+    const seen = new Set();
+    results.forEach((r) => {
+      const key = `${r.city}-${r.state}-${r.area}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(r);
+      }
+    });
+
+    return unique.slice(0, 30);
+  }, [searchQuery]);
+
+  const currentDistrictsList = ALL_INDIAN_DISTRICTS[selectedStateFilter] || [];
+  const currentTaluksData = (DISTRICT_TALUK_DATA[selectedStateFilter] && DISTRICT_TALUK_DATA[selectedStateFilter][selectedDistrictFilter]) || { taluks: [], localities: [] };
 
   return (
     <div className="location-modal-overlay" onClick={closeLocationModal}>
@@ -116,8 +172,8 @@ export default function LocationSelectorModal() {
           <div className="location-modal-title-group">
             <span className="location-modal-icon">📍</span>
             <div>
-              <h3>Choose Your Location</h3>
-              <p className="location-modal-subtitle">Discover nearby work, events, and technicians across India</p>
+              <h3>Choose Location Across India</h3>
+              <p className="location-modal-subtitle">All 28 States, 8 UTs & 780+ Districts Supported</p>
             </div>
           </div>
           <button className="location-close-btn" onClick={closeLocationModal} aria-label="Close modal">
@@ -140,7 +196,7 @@ export default function LocationSelectorModal() {
           <span className="search-icon">🔍</span>
           <input
             type="text"
-            placeholder="Search state, district, taluk, or city across India..."
+            placeholder="Search any State, District, Taluk or City across India..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             autoFocus
@@ -168,20 +224,20 @@ export default function LocationSelectorModal() {
           </div>
         </div>
 
-        {/* Tabs: Popular vs Hierarchy Drilldown */}
+        {/* Tabs */}
         {!searchQuery && (
           <div className="location-tabs">
             <button
               className={`location-tab-btn ${activeTab === 'popular' ? 'active' : ''}`}
               onClick={() => setActiveTab('popular')}
             >
-              Popular Hubs
+              Popular Metros
             </button>
             <button
-              className={`location-tab-btn ${activeTab === 'state_drilldown' ? 'active' : ''}`}
-              onClick={() => setActiveTab('state_drilldown')}
+              className={`location-tab-btn ${activeTab === 'all_districts' ? 'active' : ''}`}
+              onClick={() => setActiveTab('all_districts')}
             >
-              State → District → Taluk
+              All India States & Districts (780+)
             </button>
           </div>
         )}
@@ -190,24 +246,24 @@ export default function LocationSelectorModal() {
         <div className="location-modal-body">
           {searchQuery ? (
             <div className="cities-grid">
-              {filteredCities.length > 0 ? (
-                filteredCities.map((item) => (
+              {searchResults.length > 0 ? (
+                searchResults.map((item) => (
                   <button
-                    key={`${item.city}-${item.taluk || item.state}`}
-                    className={`city-select-card ${selectedCity === item.city && selectedArea === item.taluk ? 'selected' : ''}`}
-                    onClick={() => handleSelectLocation(item.city, item.state, item.taluk || item.locality)}
+                    key={`${item.city}-${item.state}-${item.area}`}
+                    className={`city-select-card ${selectedCity === item.city && (!item.area || selectedArea === item.area) ? 'selected' : ''}`}
+                    onClick={() => handleSelectLocation(item.city, item.state, item.area)}
                   >
                     <span className="city-icon">📍</span>
                     <div className="city-info">
-                      <div className="city-name">{item.taluk ? `${item.taluk}, ${item.city}` : item.city}</div>
-                      <div className="city-state">{item.district || item.state} • {item.tag}</div>
+                      <div className="city-name">{item.name}</div>
+                      <div className="city-state">{item.state} • {item.tag}</div>
                     </div>
                     {selectedCity === item.city && <span className="city-check">✓</span>}
                   </button>
                 ))
               ) : (
                 <div className="no-location-found">
-                  <p>No matching location found for "{searchQuery}".</p>
+                  <p>No matching district found for "{searchQuery}".</p>
                   <button
                     className="custom-city-select-btn"
                     onClick={() => handleSelectLocation(searchQuery, 'India', searchQuery)}
@@ -235,66 +291,67 @@ export default function LocationSelectorModal() {
               ))}
             </div>
           ) : (
-            /* Multi-tier State -> District -> Taluk drilldown */
+            /* Pan-India 36 States & 786 Districts Explorer */
             <div className="state-hierarchy-drilldown">
               <div className="drill-group">
-                <label>1. Select State / UT:</label>
+                <label>
+                  <span>1. Select State / Union Territory:</span>
+                  <span className="count-badge">{ALL_INDIAN_STATES.length} States & UTs</span>
+                </label>
                 <select
                   value={selectedStateFilter}
                   onChange={(e) => {
-                    setSelectedStateFilter(e.target.value);
-                    const dKeys = Object.keys(DISTRICT_TALUK_DATA[e.target.value] || {});
-                    if (dKeys.length > 0) setSelectedDistrictFilter(dKeys[0]);
+                    const newState = e.target.value;
+                    setSelectedStateFilter(newState);
+                    const dList = ALL_INDIAN_DISTRICTS[newState] || [];
+                    if (dList.length > 0) setSelectedDistrictFilter(dList[0]);
                   }}
                 >
                   {ALL_INDIAN_STATES.map((st) => (
-                    <option key={st} value={st}>{st}</option>
+                    <option key={st} value={st}>
+                      {st} ({ALL_INDIAN_DISTRICTS[st]?.length || 0} Districts)
+                    </option>
                   ))}
                 </select>
               </div>
 
-              {districtKeys.length > 0 && (
-                <div className="drill-group">
-                  <label>2. Select District:</label>
-                  <select
-                    value={selectedDistrictFilter}
-                    onChange={(e) => setSelectedDistrictFilter(e.target.value)}
-                  >
-                    {districtKeys.map((dist) => (
-                      <option key={dist} value={dist}>{dist}</option>
-                    ))}
-                  </select>
+              {/* District Selector */}
+              <div className="drill-group">
+                <div className="district-header-row">
+                  <label>2. Districts in {selectedStateFilter}:</label>
+                  <span className="count-badge">{currentDistrictsList.length} Districts</span>
                 </div>
-              )}
 
-              {currentDistrictData.taluks?.length > 0 && (
+                <div className="districts-chips-wrap">
+                  {currentDistrictsList.map((dist) => (
+                    <button
+                      key={dist}
+                      className={`district-chip-btn ${selectedDistrictFilter === dist ? 'active' : ''}`}
+                      onClick={() => {
+                        setSelectedDistrictFilter(dist);
+                        handleSelectLocation(dist, selectedStateFilter);
+                      }}
+                    >
+                      <span className="dist-pin">📍</span>
+                      <span className="dist-name">{dist}</span>
+                      {selectedCity === dist && <span className="dist-tick">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Taluks / Sub-districts if configured */}
+              {currentTaluksData.taluks?.length > 0 && (
                 <div className="drill-group">
-                  <label>3. Select Taluk / Sub-District:</label>
+                  <label>3. Major Taluks / Areas in {selectedDistrictFilter}:</label>
                   <div className="taluk-chips-grid">
-                    {currentDistrictData.taluks.map((taluk) => (
+                    {currentTaluksData.taluks.map((taluk) => (
                       <button
                         key={taluk}
                         className={`taluk-chip ${selectedArea === taluk ? 'active' : ''}`}
                         onClick={() => handleSelectLocation(selectedDistrictFilter, selectedStateFilter, taluk)}
                       >
                         {taluk}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {currentDistrictData.localities?.length > 0 && (
-                <div className="drill-group">
-                  <label>Or Choose Major Locality:</label>
-                  <div className="taluk-chips-grid">
-                    {currentDistrictData.localities.map((loc) => (
-                      <button
-                        key={loc}
-                        className={`taluk-chip ${selectedArea === loc ? 'active' : ''}`}
-                        onClick={() => handleSelectLocation(selectedDistrictFilter, selectedStateFilter, loc)}
-                      >
-                        {loc}
                       </button>
                     ))}
                   </div>
