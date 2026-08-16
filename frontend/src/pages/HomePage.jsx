@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { jobsAPI, servicesAPI } from '../services/api';
 import { useLocationStore, useAuthStore } from '../store';
 import { PART_TIME_JOB_CATEGORIES, TECHNICIAN_SERVICE_CATEGORIES, WORK_SHIFTS, JOB_TYPE_FILTERS } from '../data/categoriesData';
+import InteractiveMapView from '../components/InteractiveMapView';
 import './HomePage.css';
 
 const HomePage = () => {
@@ -11,6 +12,7 @@ const HomePage = () => {
   const { selectedCity, selectedState, selectedArea, radiusKm, openLocationModal } = useLocationStore();
 
   const [activeTab, setActiveTab] = useState('jobs'); // 'jobs' | 'services'
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'map'
   const [jobs, setJobs] = useState([]);
   const [technicians, setTechnicians] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -231,11 +233,35 @@ const HomePage = () => {
         ) : activeTab === 'jobs' ? (
           <div className="jobs-feed-list">
             <div className="feed-header-info">
-              <h3>Available Opportunities in {displayLocation}</h3>
-              <span className="jobs-count-tag">{jobs.length} Active Listings</span>
+              <div>
+                <h3>Available Opportunities in {displayLocation}</h3>
+                <span className="jobs-count-tag">{jobs.length} Active Listings</span>
+              </div>
+              <div className="view-mode-toggle-group">
+                <button
+                  className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                  onClick={() => setViewMode('grid')}
+                >
+                  ⚡ Grid View
+                </button>
+                <button
+                  className={`view-mode-btn ${viewMode === 'map' ? 'active' : ''}`}
+                  onClick={() => setViewMode('map')}
+                >
+                  🗺️ Live Map
+                </button>
+              </div>
             </div>
 
-            {jobs.length === 0 ? (
+            {viewMode === 'map' ? (
+              <InteractiveMapView
+                jobs={jobs}
+                technicians={technicians}
+                onSelectJob={(job) => navigate(`/jobs/${job.id}`)}
+                onSelectTechnician={(t) => setSelectedTechToBook(t)}
+                height="450px"
+              />
+            ) : jobs.length === 0 ? (
               <div className="empty-feed-card">
                 <span className="empty-icon">📍</span>
                 <h4>No opportunities match your current filters in {displayLocation}</h4>
@@ -293,11 +319,34 @@ const HomePage = () => {
           /* Technicians Feed */
           <div className="technicians-feed-list">
             <div className="feed-header-info">
-              <h3>Trusted Technicians in {displayLocation}</h3>
-              <span className="jobs-count-tag">{technicians.length} Verified Pros</span>
+              <div>
+                <h3>Trusted Technicians in {displayLocation}</h3>
+                <span className="jobs-count-tag">{technicians.length} Verified Pros</span>
+              </div>
+              <div className="view-mode-toggle-group">
+                <button
+                  className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                  onClick={() => setViewMode('grid')}
+                >
+                  ⚡ Grid View
+                </button>
+                <button
+                  className={`view-mode-btn ${viewMode === 'map' ? 'active' : ''}`}
+                  onClick={() => setViewMode('map')}
+                >
+                  🗺️ Live Map
+                </button>
+              </div>
             </div>
 
-            {technicians.length === 0 ? (
+            {viewMode === 'map' ? (
+              <InteractiveMapView
+                technicians={technicians}
+                jobs={jobs}
+                onSelectTechnician={(t) => setSelectedTechToBook(t)}
+                height="450px"
+              />
+            ) : technicians.length === 0 ? (
               <div className="empty-feed-card">
                 <span className="empty-icon">🔧</span>
                 <h4>No technicians found in {displayLocation} for this category</h4>

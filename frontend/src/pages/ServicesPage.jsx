@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { servicesAPI } from '../services/api';
 import { useLocationStore, useAuthStore } from '../store';
 import { TECHNICIAN_SERVICE_CATEGORIES } from '../data/categoriesData';
+import InteractiveMapView from '../components/InteractiveMapView';
 import './ServicesPage.css';
 
 export default function ServicesPage() {
@@ -10,6 +11,7 @@ export default function ServicesPage() {
 
   const [categories, setCategories] = useState(TECHNICIAN_SERVICE_CATEGORIES);
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'map'
   const [technicians, setTechnicians] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -104,29 +106,52 @@ export default function ServicesPage() {
         </div>
       </header>
 
-      {/* Category Pills */}
-      <section className="service-category-pills">
-        <button
-          className={`service-cat-pill ${selectedCategory === '' ? 'active' : ''}`}
-          onClick={() => setSelectedCategory('')}
-        >
-          🌟 All Services
-        </button>
-        {categories.map((c) => (
+      {/* Category Pills & View Switcher */}
+      <section className="service-category-pills-row">
+        <div className="service-category-pills">
           <button
-            key={c.id}
-            className={`service-cat-pill ${selectedCategory === c.id ? 'active' : ''}`}
-            onClick={() => setSelectedCategory(selectedCategory === c.id ? '' : c.id)}
+            className={`service-cat-pill ${selectedCategory === '' ? 'active' : ''}`}
+            onClick={() => setSelectedCategory('')}
           >
-            <span>{c.icon}</span>
-            <span>{c.title}</span>
+            🌟 All Services
           </button>
-        ))}
+          {categories.map((c) => (
+            <button
+              key={c.id}
+              className={`service-cat-pill ${selectedCategory === c.id ? 'active' : ''}`}
+              onClick={() => setSelectedCategory(selectedCategory === c.id ? '' : c.id)}
+            >
+              <span>{c.icon}</span>
+              <span>{c.title}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="view-mode-toggle-group">
+          <button
+            className={`view-mode-btn ${viewMode === 'list' ? 'active' : ''}`}
+            onClick={() => setViewMode('list')}
+          >
+            📋 List View
+          </button>
+          <button
+            className={`view-mode-btn ${viewMode === 'map' ? 'active' : ''}`}
+            onClick={() => setViewMode('map')}
+          >
+            🗺️ Map View
+          </button>
+        </div>
       </section>
 
-      {/* Technicians Grid */}
+      {/* Technicians Main Content */}
       <main className="technicians-grid-section">
-        {loading ? (
+        {viewMode === 'map' ? (
+          <InteractiveMapView
+            technicians={filteredTechs}
+            onSelectTechnician={(t) => setSelectedTech(t)}
+            height="500px"
+          />
+        ) : loading ? (
           <div className="tech-loading-state">
             <div className="spinner-ring"></div>
             <p>Loading certified technicians in {selectedCity}...</p>

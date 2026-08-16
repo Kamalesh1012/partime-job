@@ -68,13 +68,22 @@
   outline: none;
 }
 
+.service-category-pills-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
 .service-category-pills {
   display: flex;
   gap: 0.5rem;
   overflow-x: auto;
-  padding-bottom: 0.75rem;
-  margin-bottom: 1.5rem;
+  padding-bottom: 0.4rem;
   scrollbar-width: thin;
+  flex: 1;
 }
 
 .service-cat-pill {

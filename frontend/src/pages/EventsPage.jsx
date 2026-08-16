@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { jobsAPI } from '../services/api';
 import { useLocationStore } from '../store';
+import InteractiveMapView from '../components/InteractiveMapView';
 import './EventsPage.css';
 
 const EVENT_SPECIALTIES = [
@@ -20,6 +21,7 @@ export default function EventsPage() {
   const { selectedCity, selectedState, selectedArea, openLocationModal } = useLocationStore();
 
   const [selectedSpecialty, setSelectedSpecialty] = useState('all');
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'map'
   const [eventsList, setEventsList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -81,11 +83,33 @@ export default function EventsPage() {
       {/* Events Feed Grid */}
       <div className="events-feed-wrap">
         <div className="events-feed-header">
-          <h2>Active Event Opportunities ({eventsList.length})</h2>
-          <span className="instant-pay-badge">⚡ Same-Day / Next-Day Payouts Available</span>
+          <div>
+            <h2>Active Event Opportunities ({eventsList.length})</h2>
+            <span className="instant-pay-badge">⚡ Same-Day / Next-Day Payouts Available</span>
+          </div>
+          <div className="view-mode-toggle-group">
+            <button
+              className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
+              onClick={() => setViewMode('grid')}
+            >
+              ⚡ Grid View
+            </button>
+            <button
+              className={`view-mode-btn ${viewMode === 'map' ? 'active' : ''}`}
+              onClick={() => setViewMode('map')}
+            >
+              🗺️ Map View
+            </button>
+          </div>
         </div>
 
-        {loading ? (
+        {viewMode === 'map' ? (
+          <InteractiveMapView
+            jobs={eventsList}
+            onSelectJob={(gig) => navigate(`/jobs/${gig.id}`)}
+            height="480px"
+          />
+        ) : loading ? (
           <div className="events-loading">
             <div className="spinner-ring"></div>
             <p>Loading active event shifts in {displayLocation}...</p>

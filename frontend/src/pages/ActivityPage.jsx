@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore, useSafetyStore } from '../store';
 import { activeJobsAPI, applicationsAPI, servicesAPI, safetyAPI } from '../services/api';
+import LiveTrackingMap from '../components/LiveTrackingMap';
 import './ActivityPage.css';
 
 export default function ActivityPage() {
@@ -156,6 +157,13 @@ export default function ActivityPage() {
                       </div>
                     ))}
                   </div>
+
+                  {/* Interactive Live Doorstep Tracking Map */}
+                  <LiveTrackingMap
+                    jobTitle={aj.job_title}
+                    destinationAddress={aj.location_address}
+                    status={aj.current_status}
+                  />
 
                   {/* Safety & Action Controls */}
                   <div className="live-job-footer">

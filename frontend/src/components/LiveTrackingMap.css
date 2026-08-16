@@ -1,0 +1,127 @@
+.live-tracking-map-container {
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 1rem;
+  overflow: hidden;
+  margin: 1rem 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.live-tracking-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1rem;
+  background: #f0fdf4;
+  border-bottom: 1px solid #bbf7d0;
+}
+
+.live-status-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.775rem;
+  font-weight: 700;
+  color: #15803d;
+}
+
+.live-pulse-dot {
+  width: 8px;
+  height: 8px;
+  background: #22c55e;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.3);
+  animation: liveDotPulse 1.5s infinite;
+}
+
+@keyframes liveDotPulse {
+  0% { transform: scale(0.9); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.7; }
+  100% { transform: scale(0.9); opacity: 1; }
+}
+
+.speed-tag {
+  font-size: 0.725rem;
+  background: #ffffff;
+  border: 1px solid #86efac;
+  color: #166534;
+  padding: 0.15rem 0.5rem;
+  border-radius: 1rem;
+  font-weight: 600;
+}
+
+.live-map-canvas {
+  position: relative;
+  z-index: 1;
+}
+
+.live-tracking-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: var(--footer-bg, #f8fafc);
+  border-top: 1px solid var(--border-color, #e2e8f0);
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.footer-worker-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.worker-avatar {
+  font-size: 1.25rem;
+}
+
+.footer-worker-info div {
+  display: flex;
+  flex-direction: column;
+}
+
+.footer-worker-info strong {
+  font-size: 0.85rem;
+  color: var(--text-color, #0f172a);
+}
+
+.footer-worker-info span {
+  font-size: 0.75rem;
+  color: var(--text-muted, #64748b);
+}
+
+.footer-destination-info {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.775rem;
+  color: var(--text-color, #334155);
+}
+
+.dest-marker-badge {
+  background: #2563eb;
+  color: #ffffff;
+  padding: 0.2rem 0.5rem;
+  border-radius: 1rem;
+  font-size: 0.725rem;
+  font-weight: 700;
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+}
+
+.worker-marker-badge {
+  background: #16a34a;
+  color: #ffffff;
+  padding: 0.2rem 0.5rem;
+  border-radius: 1rem;
+  font-size: 0.725rem;
+  font-weight: 700;
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
