@@ -1,126 +1,144 @@
-/* Footer Styles */
 .footer {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  color: #e0e7ff;
-  padding: 60px 20px 20px;
-  margin-top: 100px;
-}
-
-.dark .footer {
-  background: linear-gradient(135deg, #0a0e27 0%, #16213e 100%);
+  background: var(--footer-bg, #0f172a);
+  color: #94a3b8;
+  padding: 3rem 1.25rem 1.5rem;
+  border-top: 1px solid var(--border-color, #1e293b);
+  margin-top: 3rem;
 }
 
 .footer-container {
-  max-width: 1400px;
+  max-width: 1200px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 40px;
-  padding-bottom: 40px;
-  border-bottom: 1px solid rgba(224, 231, 255, 0.1);
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  gap: 2rem;
+  margin-bottom: 2.5rem;
 }
 
-.footer-section h3 {
-  font-size: 1.1rem;
-  margin-bottom: 20px;
-  color: #fff;
+.footer-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.footer-sewaa-logo {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  border-radius: 0.5rem;
+}
+
+.footer-brand-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #ffffff;
+}
+
+.footer-brand-sub {
+  font-size: 0.725rem;
+  color: #60a5fa;
   font-weight: 600;
 }
 
-.footer-section p {
-  font-size: 0.9rem;
-  line-height: 1.6;
-  margin-bottom: 20px;
-  color: #cbd5e1;
+.footer-about-text {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #94a3b8;
+  margin-bottom: 1rem;
+}
+
+.footer-section h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f8fafc;
+  margin-bottom: 1rem;
 }
 
 .footer-section ul {
   list-style: none;
   padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
 }
 
-.footer-section li {
-  margin-bottom: 12px;
-}
-
-.footer-section a {
-  color: #cbd5e1;
+.footer-section ul li a {
+  color: #94a3b8;
   text-decoration: none;
-  transition: all 0.3s ease;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
+  transition: color 0.2s;
 }
 
-.footer-section a:hover {
-  color: #4f46e5;
-  transform: translateX(5px);
+.footer-section ul li a:hover {
+  color: #ffffff;
 }
 
 .social-links {
   display: flex;
-  gap: 15px;
-  margin-top: 20px;
+  gap: 0.75rem;
 }
 
 .social-links a {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(79, 70, 229, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
-  transition: all 0.3s ease;
-  color: #4f46e5;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #1e293b;
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: background 0.2s;
 }
 
 .social-links a:hover {
-  background: #4f46e5;
-  color: white;
-  transform: translateY(-5px);
+  background: #2563eb;
 }
 
 .footer-bottom {
-  max-width: 1400px;
+  max-width: 1200px;
   margin: 0 auto;
-  text-align: center;
-  padding-top: 30px;
-  font-size: 0.9rem;
-  color: #cbd5e1;
-}
-
-.footer-links {
-  margin-top: 15px;
+  padding-top: 1.5rem;
+  border-top: 1px solid #1e293b;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 .footer-links a {
-  color: #cbd5e1;
+  color: #94a3b8;
   text-decoration: none;
-  transition: color 0.3s ease;
 }
 
 .footer-links a:hover {
-  color: #4f46e5;
+  color: #ffffff;
 }
 
-.footer-links span {
-  margin: 0 10px;
-  color: #475569;
+@media (max-width: 900px) {
+  .footer-container {
+    grid-template-columns: 1fr 1fr;
+  }
+  .footer-about-col {
+    grid-column: span 2;
+  }
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
+@media (max-width: 540px) {
   .footer-container {
     grid-template-columns: 1fr;
-    gap: 30px;
   }
-
-  .footer {
-    padding: 40px 20px 15px;
-    margin-top: 50px;
+  .footer-about-col {
+    grid-column: span 1;
   }
-
-  .footer-section h3 {
-    font-size: 1rem;
+  .footer-bottom {
+    flex-direction: column;
+    text-align: center;
   }
 }

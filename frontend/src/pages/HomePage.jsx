@@ -1,16 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { jobsAPI, servicesAPI } from '../services/api';
-import { useLocationStore, useSafetyStore, useAuthStore } from '../store';
+import { useLocationStore, useAuthStore } from '../store';
 import { PART_TIME_JOB_CATEGORIES, TECHNICIAN_SERVICE_CATEGORIES, WORK_SHIFTS, JOB_TYPE_FILTERS } from '../data/categoriesData';
-import { POPULAR_INDIAN_CITIES } from '../data/indiaLocations';
 import './HomePage.css';
 
 const HomePage = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { selectedCity, selectedState, radiusKm, openLocationModal } = useLocationStore();
-  const { openSOSModal } = useSafetyStore();
+  const { selectedCity, selectedState, selectedArea, radiusKm, openLocationModal } = useLocationStore();
 
   const [activeTab, setActiveTab] = useState('jobs'); // 'jobs' | 'services'
   const [jobs, setJobs] = useState([]);
@@ -86,7 +84,7 @@ const HomePage = () => {
         problem_description: bookingProblem || 'General diagnosis & service required',
         city: selectedCity,
         state: selectedState,
-        service_address: bookingAddress || `${selectedCity}, Landmark area`,
+        service_address: bookingAddress || `${selectedArea ? `${selectedArea}, ` : ''}${selectedCity}`,
         preferred_date: bookingDate || new Date().toISOString().split('T')[0],
         preferred_time_slot: bookingTimeSlot,
         estimated_cost: selectedTechToBook.visiting_charge || 199.0,
@@ -102,33 +100,34 @@ const HomePage = () => {
     }
   };
 
+  const displayLocation = selectedArea ? `${selectedArea}, ${selectedCity}` : selectedCity;
+
   return (
     <div className="home-container">
-      {/* Top Location & Safety Header */}
+      {/* Top Location Bar */}
       <section className="location-bar-header">
         <div className="location-info-chip" onClick={openLocationModal}>
           <span className="loc-icon">📍</span>
           <div className="loc-text">
-            <span className="loc-sub">Showing Work in</span>
-            <strong className="loc-title">{selectedCity}, {selectedState} ▾</strong>
+            <span className="loc-sub">Showing Opportunities in</span>
+            <strong className="loc-title">{displayLocation}, {selectedState} ▾</strong>
           </div>
           <span className="loc-badge">Within {radiusKm} km</span>
         </div>
 
-        <button className="sos-quick-pill" onClick={() => openSOSModal()} title="Safety & SOS">
-          <span className="sos-blip"></span>
-          <span>SOS Help</span>
+        <button className="change-loc-quick-btn" onClick={openLocationModal}>
+          Change Location 📍
         </button>
       </section>
 
       {/* Hero Headline */}
       <section className="hero-compact-section">
         <h1 className="hero-headline">
-          Find Part-Time Work. <br />
-          <span className="text-highlight">Find Trusted Technicians.</span>
+          Find Work. Find Services. <br />
+          <span className="text-highlight">Find SEWAA.</span>
         </h1>
         <p className="hero-subtext">
-          Pan-India on-demand jobs, daily wage shifts, and certified doorstep appliance repair across all states.
+          On-demand jobs, events, daily wage work, and trusted local services across India.
         </p>
 
         {/* Search Box */}
@@ -136,7 +135,7 @@ const HomePage = () => {
           <span className="search-symbol">🔍</span>
           <input
             type="text"
-            placeholder={`Search ${activeTab === 'jobs' ? 'delivery, packing, retail, daily wage...' : 'electrician, AC repair, plumber, mechanic...'}`}
+            placeholder="Search jobs, events, technicians & services..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -147,16 +146,16 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Dual Mode Switcher */}
+      {/* Mode Switcher */}
       <div className="dual-mode-switcher">
         <button
           className={`mode-tab-btn ${activeTab === 'jobs' ? 'active' : ''}`}
           onClick={() => { setActiveTab('jobs'); setSelectedCategory(''); }}
         >
-          <span className="tab-icon">💼</span>
+          <span className="tab-icon">👨</span>
           <div className="tab-text">
-            <strong>Part-Time & Gig Jobs</strong>
-            <span>Daily wage, weekend, delivery</span>
+            <strong>Events Near You</strong>
+            <span>Local events, temporary work & flexible opportunities</span>
           </div>
         </button>
         <button
@@ -174,7 +173,7 @@ const HomePage = () => {
       {/* Category Icons Carousel */}
       <section className="categories-section">
         <div className="section-header-compact">
-          <h3>{activeTab === 'jobs' ? 'Popular Job Categories' : 'Home & Repair Services'}</h3>
+          <h3>{activeTab === 'jobs' ? 'Popular Work & Event Categories' : 'Home & Repair Services'}</h3>
           <span className="section-count">{activeTab === 'jobs' ? PART_TIME_JOB_CATEGORIES.length : TECHNICIAN_SERVICE_CATEGORIES.length} Categories</span>
         </div>
 
@@ -193,7 +192,7 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Shift & Job Type Filter Chips (When in Jobs mode) */}
+      {/* Shift & Job Type Filter Chips */}
       {activeTab === 'jobs' && (
         <section className="filter-chips-row">
           <div className="shift-chips">
@@ -227,19 +226,19 @@ const HomePage = () => {
         {loading ? (
           <div className="feed-loading-spinner">
             <div className="spinner-ring"></div>
-            <p>Finding verified opportunities in {selectedCity}...</p>
+            <p>Finding verified opportunities in {displayLocation}...</p>
           </div>
         ) : activeTab === 'jobs' ? (
           <div className="jobs-feed-list">
             <div className="feed-header-info">
-              <h3>Available Jobs in {selectedCity}</h3>
-              <span className="jobs-count-tag">{jobs.length} Opportunities</span>
+              <h3>Available Opportunities in {displayLocation}</h3>
+              <span className="jobs-count-tag">{jobs.length} Active Listings</span>
             </div>
 
             {jobs.length === 0 ? (
               <div className="empty-feed-card">
                 <span className="empty-icon">📍</span>
-                <h4>No jobs match your current filters in {selectedCity}</h4>
+                <h4>No opportunities match your current filters in {displayLocation}</h4>
                 <p>Try switching to "All India" or clearing category filters.</p>
                 <button className="reset-filters-btn" onClick={() => { setSelectedCategory(''); setSelectedShift('all'); setSelectedJobType('all'); }}>
                   Reset Filters
@@ -294,14 +293,14 @@ const HomePage = () => {
           /* Technicians Feed */
           <div className="technicians-feed-list">
             <div className="feed-header-info">
-              <h3>Verified Technicians in {selectedCity}</h3>
+              <h3>Trusted Technicians in {displayLocation}</h3>
               <span className="jobs-count-tag">{technicians.length} Verified Pros</span>
             </div>
 
             {technicians.length === 0 ? (
               <div className="empty-feed-card">
                 <span className="empty-icon">🔧</span>
-                <h4>No technicians found in {selectedCity} for this category</h4>
+                <h4>No technicians found in {displayLocation} for this category</h4>
                 <p>Try searching across nearby districts or view all services.</p>
               </div>
             ) : (
@@ -356,16 +355,21 @@ const HomePage = () => {
         )}
       </main>
 
-      {/* Safety & SOS Protection Banner */}
-      <section className="safety-guarantee-banner">
-        <div className="safety-banner-icon">🛡️</div>
-        <div className="safety-banner-text">
-          <h4>WorkMate 24x7 Safety & SOS Protection</h4>
-          <p>Real-time location check-in, verified identities with privacy protection, and one-tap emergency SOS support.</p>
+      {/* SEWAA Slogan Banner (Replaces SOS Banner) */}
+      <section className="sewaa-slogan-banner">
+        <div className="slogan-badge">🇮🇳 SEWAA INDIA</div>
+        <h2 className="slogan-title">Your Work. Your Service. Your SEWAA.</h2>
+        <p className="slogan-sub">
+          Find flexible work and trusted local professionals, wherever you are in India.
+        </p>
+        <div className="slogan-buttons">
+          <button className="slogan-btn-primary" onClick={() => navigate('/events')}>
+            Explore Events & Work
+          </button>
+          <button className="slogan-btn-secondary" onClick={() => navigate('/services')}>
+            Find Nearby Technicians
+          </button>
         </div>
-        <button className="safety-action-btn" onClick={() => openSOSModal()}>
-          Test SOS Safety
-        </button>
       </section>
 
       {/* Technician Booking Modal */}
@@ -375,7 +379,7 @@ const HomePage = () => {
             <div className="booking-modal-header">
               <div>
                 <h3>Book {selectedTechToBook.full_name}</h3>
-                <span className="booking-sub">{selectedTechToBook.badge_type} • {selectedCity}</span>
+                <span className="booking-sub">{selectedTechToBook.badge_type} • {displayLocation}</span>
               </div>
               <button className="close-btn" onClick={() => setSelectedTechToBook(null)}>✕</button>
             </div>

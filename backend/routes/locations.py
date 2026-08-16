@@ -1,6 +1,6 @@
 """
-WorkMate India - Pan-India Locations API
-Provides state, district, city, popular hubs, and PIN code lookup for all 28 Indian states & 8 UTs
+SEWAA India - Pan-India Locations API
+Provides state, district, taluk, city, popular hubs, and PIN code lookup for all 28 Indian states & 8 UTs
 """
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional, List, Dict
@@ -60,13 +60,13 @@ INDIAN_STATES_DATA: Dict[str, List[str]] = {
         "Ludhiana", "Amritsar", "Jalandhar", "Patiala", "Bathinda", "Mohali", "Hoshiarpur", "Batala", "Pathankot"
     ],
     "Haryana": [
-        "Gurugram", "Faridabad", "Panipat", "Ambala", "Yamunanagar", "Rohtak", "Hisar", "Karnal", "Sonipat", "Panchkula"
+        "Faridabad", "Gurugram", "Panipat", "Ambala", "Yamunanagar", "Rohtak", "Hisar", "Karnal", "Sonipat", "Panchkula"
     ],
     "Bihar": [
-        "Patna", "Gaya", "Bhagalpur", "Muzaffarpur", "Purnia", "Darbhanga", "Bihar Sharif", "Arrah", "Begusarai"
+        "Patna", "Gaya", "Bhagalpur", "Muzaffarpur", "Purnia", "Darbhanga", "Bihar Sharif", "Arrah", "Begusarai", "Katihar"
     ],
     "Odisha": [
-        "Bhubaneswar", "Cuttack", "Rourkela", "Berhampur", "Sambalpur", "Puri", "Balasore", "Bhadrak"
+        "Bhubaneswar", "Cuttack", "Rourkela", "Berhampur", "Sambalpur", "Puri", "Balasore", "Bhadrak", "Baripada"
     ],
     "Assam": [
         "Guwahati", "Silchar", "Dibrugarh", "Jorhat", "Nagaon", "Tinsukia", "Tezpur"
@@ -75,7 +75,7 @@ INDIAN_STATES_DATA: Dict[str, List[str]] = {
         "Ranchi", "Jamshedpur", "Dhanbad", "Bokaro Steel City", "Deoghar", "Phusro", "Hazaribagh"
     ],
     "Chhattisgarh": [
-        "Raipur", "Bhilai", "Bilaspur", "Korba", "Rajnandgaon", "Durg", "Raigarh"
+        "Raipur", "Bhilai", "Bilaspur", "Korba", "Rajnandgaon", "Durg", "Jagdalpur"
     ],
     "Uttarakhand": [
         "Dehradun", "Haridwar", "Roorkee", "Haldwani", "Rudrapur", "Kashipur", "Rishikesh"
@@ -84,37 +84,49 @@ INDIAN_STATES_DATA: Dict[str, List[str]] = {
         "Panaji", "Margao", "Vasco da Gama", "Mapusa", "Ponda"
     ],
     "Himachal Pradesh": [
-        "Shimla", "Dharamshala", "Solan", "Mandi", "Baddi", "Kullu"
+        "Shimla", "Dharamshala", "Mandi", "Solan", "Baddi", "Kullu"
     ],
-    "Chandigarh": ["Chandigarh"],
-    "Puducherry": ["Puducherry", "Karaikal", "Yanam", "Mahe"],
-    "Jammu and Kashmir": ["Srinagar", "Jammu", "Anantnag", "Baramulla", "Kathua"],
     "Tripura": ["Agartala"],
-    "Meghalaya": ["Shillong"],
     "Manipur": ["Imphal"],
+    "Meghalaya": ["Shillong"],
     "Nagaland": ["Dimapur", "Kohima"],
     "Mizoram": ["Aizawl"],
     "Arunachal Pradesh": ["Itanagar"],
     "Sikkim": ["Gangtok"],
+    "Chandigarh": ["Chandigarh"],
+    "Puducherry": ["Puducherry", "Karaikal", "Yanam", "Mahe"],
+    "Jammu and Kashmir": ["Srinagar", "Jammu", "Anantnag", "Baramulla"],
     "Ladakh": ["Leh", "Kargil"],
     "Andaman and Nicobar Islands": ["Port Blair"],
     "Dadra and Nagar Haveli and Daman and Diu": ["Daman", "Diu", "Silvassa"],
     "Lakshadweep": ["Kavaratti"]
 }
 
+POPULAR_TALUKS: List[Dict] = [
+    {"name": "Whitefield, Bengaluru", "taluk": "Whitefield", "city": "Bengaluru", "district": "Bengaluru Urban", "state": "Karnataka"},
+    {"name": "Sholinganallur, Chennai", "taluk": "Sholinganallur", "city": "Chennai", "district": "Chengalpattu", "state": "Tamil Nadu"},
+    {"name": "Madhapur, Hyderabad", "taluk": "Madhapur", "city": "Hyderabad", "district": "Rangareddy", "state": "Telangana"},
+    {"name": "Andheri, Mumbai", "taluk": "Andheri", "city": "Mumbai", "district": "Mumbai Suburban", "state": "Maharashtra"},
+    {"name": "Saket, New Delhi", "taluk": "Saket", "city": "New Delhi", "district": "South Delhi", "state": "Delhi"},
+    {"name": "Hinjewadi, Pune", "taluk": "Hinjewadi", "city": "Pune", "district": "Pune", "state": "Maharashtra"},
+    {"name": "Kakkanad, Kochi", "taluk": "Kakkanad", "city": "Kochi", "district": "Ernakulam", "state": "Kerala"},
+    {"name": "Peelamedu, Coimbatore", "taluk": "Peelamedu", "city": "Coimbatore", "district": "Coimbatore", "state": "Tamil Nadu"},
+    {"name": "Salt Lake, Kolkata", "taluk": "Salt Lake", "city": "Kolkata", "district": "North 24 Parganas", "state": "West Bengal"},
+]
+
 POPULAR_CITIES = [
-    {"city": "Chennai", "state": "Tamil Nadu", "tag": "Industrial & Tech Hub", "icon": "🏛️"},
-    {"city": "Bengaluru", "state": "Karnataka", "tag": "Silicon Valley of India", "icon": "💻"},
-    {"city": "Hyderabad", "state": "Telangana", "tag": "Cyberabad Hub", "icon": "🕌"},
-    {"city": "Mumbai", "state": "Maharashtra", "tag": "Financial Capital", "icon": "🌆"},
-    {"city": "Delhi NCR", "state": "Delhi", "tag": "National Capital Region", "icon": "🏛️"},
-    {"city": "Pune", "state": "Maharashtra", "tag": "Automobile & IT Hub", "icon": "⚙️"},
-    {"city": "Kochi", "state": "Kerala", "tag": "Coastal & Port Hub", "icon": "🌴"},
-    {"city": "Coimbatore", "state": "Tamil Nadu", "tag": "Textile & Engineering", "icon": "🏭"},
-    {"city": "Kolkata", "state": "West Bengal", "tag": "Eastern Metropolis", "icon": "🌉"},
-    {"city": "Ahmedabad", "state": "Gujarat", "tag": "Commercial Capital", "icon": "🏢"},
-    {"city": "Jaipur", "state": "Rajasthan", "tag": "Heritage & Tourism Hub", "icon": "🏰"},
-    {"city": "Lucknow", "state": "Uttar Pradesh", "tag": "North Commercial Hub", "icon": "🕌"},
+    {"city": "Chennai", "state": "Tamil Nadu", "tag": "Industrial & Tech Hub", "lat": 13.0827, "lng": 80.2707},
+    {"city": "Bengaluru", "state": "Karnataka", "tag": "Silicon Valley Hub", "lat": 12.9716, "lng": 77.5946},
+    {"city": "Hyderabad", "state": "Telangana", "tag": "Cyberabad Hub", "lat": 17.3850, "lng": 78.4867},
+    {"city": "Mumbai", "state": "Maharashtra", "tag": "Commercial Capital", "lat": 19.0760, "lng": 72.8777},
+    {"city": "New Delhi", "state": "Delhi", "tag": "National Capital Hub", "lat": 28.6139, "lng": 77.2090},
+    {"city": "Pune", "state": "Maharashtra", "tag": "Automobile & IT Hub", "lat": 18.5204, "lng": 73.8567},
+    {"city": "Kochi", "state": "Kerala", "tag": "Port & Coastal Hub", "lat": 9.9312, "lng": 76.2673},
+    {"city": "Coimbatore", "state": "Tamil Nadu", "tag": "Textile & Engineering Hub", "lat": 11.0168, "lng": 76.9558},
+    {"city": "Kolkata", "state": "West Bengal", "tag": "Eastern Metropolis", "lat": 22.5726, "lng": 88.3639},
+    {"city": "Ahmedabad", "state": "Gujarat", "tag": "Commercial Center", "lat": 23.0225, "lng": 72.5714},
+    {"city": "Jaipur", "state": "Rajasthan", "tag": "Heritage & Tourism Hub", "lat": 26.9124, "lng": 75.7873},
+    {"city": "Lucknow", "state": "Uttar Pradesh", "tag": "Capital & Commerce Hub", "lat": 26.8467, "lng": 80.9462},
 ]
 
 
@@ -168,9 +180,21 @@ async def get_popular_cities():
 @router.get("/search")
 @router.get("/search/")
 async def search_location(q: str = Query(..., min_length=1)):
-    """Autocomplete search for any Indian city or state"""
+    """Autocomplete search for any Indian city, taluk, or state"""
     query = q.strip().lower()
     matches = []
+
+    # Check taluks first
+    for taluk_obj in POPULAR_TALUKS:
+        if query in taluk_obj["taluk"].lower() or query in taluk_obj["name"].lower():
+            matches.append({
+                "type": "taluk",
+                "name": taluk_obj["name"],
+                "taluk": taluk_obj["taluk"],
+                "city": taluk_obj["city"],
+                "district": taluk_obj["district"],
+                "state": taluk_obj["state"]
+            })
 
     for state, cities in INDIAN_STATES_DATA.items():
         if query in state.lower():

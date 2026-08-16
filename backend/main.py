@@ -1,5 +1,5 @@
 """
-WorkMate India - Part-Time Jobs & Local Services Platform API
+SEWAA India - Part-Time Jobs, Events & Local Services Platform API
 Main FastAPI Application
 """
 import sys
@@ -43,72 +43,45 @@ from app.routes import active_jobs
 # Lifespan context
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("WorkMate India API Starting...")
+    print("SEWAA India API Starting...")
     yield
-    print("WorkMate India API Shutting down...")
+    print("SEWAA India API Shutting down...")
 
 
 # Create FastAPI app
 app = FastAPI(
-    title="WorkMate India",
-    description="Pan-India Part-Time Jobs, Gig Work, Technicians & Local Home Services Platform API",
-    version="2.0.0",
+    title="SEWAA India",
+    description="Pan-India Part-Time Jobs, Events, Technicians & Local Home Services Platform API",
+    version="2.1.0",
     lifespan=lifespan,
 )
 
 
 # ==================== CORS ====================
 
-frontend_url = (
-    settings.FRONTEND_URL
-    if hasattr(settings, "FRONTEND_URL") and settings.FRONTEND_URL
-    else "http://localhost:5173"
-)
-
-origins = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:5173",
-    "https://bucolic-sunflower-10231c.netlify.app",
-    frontend_url,
-]
-
-origins = list(dict.fromkeys(origins))
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_origin_regex=r"https://.*\.netlify\.app",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-# ==================== TRUSTED HOST ====================
-
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=[
-        "localhost",
-        "127.0.0.1",
-        "0.0.0.0",
-        "*.netlify.app",
-        "*.vercel.app",
-        "*.onrender.com",
-        "*.render.com",
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8001",
+        "https://partime-job.vercel.app",
+        "https://bucolic-sunflower-10231c.netlify.app",
         "*",
     ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
 )
 
 
 # ==================== ROUTERS ====================
-
-app.include_router(
-    auth.router,
-    prefix="/api/auth",
-    tags=["Authentication"],
-)
 
 app.include_router(
     locations.router,
@@ -117,9 +90,15 @@ app.include_router(
 )
 
 app.include_router(
+    auth.router,
+    prefix="/api/auth",
+    tags=["Authentication"],
+)
+
+app.include_router(
     jobs.router,
     prefix="/api/jobs",
-    tags=["Jobs & Part-Time Gigs"],
+    tags=["Jobs & Events"],
 )
 
 app.include_router(
@@ -131,7 +110,7 @@ app.include_router(
 app.include_router(
     safety.router,
     prefix="/api/safety",
-    tags=["Emergency Safety & SOS"],
+    tags=["Emergency Safety & Contacts"],
 )
 
 app.include_router(
@@ -172,8 +151,8 @@ async def health_check():
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "service": "WorkMate India API",
-        "version": "2.0.0",
+        "service": "SEWAA India API",
+        "version": "2.1.0",
     }
 
 
@@ -181,10 +160,10 @@ async def health_check():
 async def root():
     """Root endpoint."""
     return {
-        "message": "Welcome to WorkMate India – Part-Time Jobs & Local Services API",
+        "message": "Welcome to SEWAA India – Part-Time Jobs, Events & Local Services API",
         "docs": "/docs",
         "openapi": "/openapi.json",
-        "version": "2.0.0"
+        "version": "2.1.0"
     }
 
 

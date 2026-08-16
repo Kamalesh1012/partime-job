@@ -20,18 +20,22 @@
 .nav-left-group {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .navbar-logo {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.65rem;
   text-decoration: none;
 }
 
-.logo-icon {
-  font-size: 1.75rem;
+.navbar-sewaa-logo {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  border-radius: 0.5rem;
+  flex-shrink: 0;
 }
 
 .logo-text-block {
@@ -39,30 +43,29 @@
   flex-direction: column;
 }
 
-.logo-text {
-  font-size: 1.2rem;
-  font-weight: 800;
-  color: var(--text-color, #0f172a);
+.logo-title-row {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  line-height: 1.2;
+}
+
+.logo-text {
+  font-size: 1.3rem;
+  font-weight: 900;
+  color: var(--text-color, #0f172a);
+  letter-spacing: 0.03em;
+  line-height: 1.1;
 }
 
 .india-badge {
-  font-size: 0.75rem;
-  background: #eff6ff;
-  color: #1d4ed8;
-  padding: 0.15rem 0.45rem;
-  border-radius: 0.35rem;
-  border: 1px solid #bfdbfe;
-  font-weight: 700;
+  font-size: 0.9rem;
 }
 
 .logo-subtext {
   font-size: 0.675rem;
   color: var(--text-muted, #64748b);
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 /* Location Selector Pill */
@@ -72,7 +75,7 @@
   gap: 0.35rem;
   background: var(--btn-secondary-bg, #f1f5f9);
   border: 1px solid var(--border-color, #cbd5e1);
-  padding: 0.35rem 0.75rem;
+  padding: 0.4rem 0.85rem;
   border-radius: 2rem;
   cursor: pointer;
   font-size: 0.85rem;
@@ -92,7 +95,7 @@
 
 .location-city-name {
   font-weight: 700;
-  max-width: 130px;
+  max-width: 170px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -107,58 +110,19 @@
 .nav-right-group {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
-}
-
-.nav-sos-quick-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  background: #ffe4e6;
-  border: 1.5px solid #fda4af;
-  color: #e11d48;
-  font-size: 0.775rem;
-  font-weight: 800;
-  padding: 0.35rem 0.75rem;
-  border-radius: 2rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.nav-sos-quick-btn:hover {
-  background: #f43f5e;
-  border-color: #f43f5e;
-  color: #ffffff;
-  transform: scale(1.03);
-}
-
-.sos-dot {
-  width: 7px;
-  height: 7px;
-  background: #e11d48;
-  border-radius: 50%;
-  animation: blink 1s infinite alternate;
-}
-
-.nav-sos-quick-btn:hover .sos-dot {
-  background: #ffffff;
-}
-
-@keyframes blink {
-  from { opacity: 0.3; }
-  to { opacity: 1; }
+  gap: 1.25rem;
 }
 
 .desktop-links {
   display: flex;
   align-items: center;
-  gap: 1.1rem;
+  gap: 1.25rem;
 }
 
 .nav-link {
   text-decoration: none;
-  color: var(--text-color, #475569);
-  font-size: 0.9rem;
+  color: var(--text-color, #334155);
+  font-size: 0.925rem;
   font-weight: 600;
   transition: color 0.2s;
 }
@@ -171,8 +135,8 @@
   background: none;
   border: 1px solid var(--border-color, #e2e8f0);
   border-radius: 50%;
-  width: 2rem;
-  height: 2rem;
+  width: 2.1rem;
+  height: 2.1rem;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -183,17 +147,17 @@
 .nav-auth-buttons {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.65rem;
 }
 
 .btn-login-outline {
   text-decoration: none;
-  padding: 0.4rem 0.85rem;
+  padding: 0.45rem 0.95rem;
   border-radius: 0.5rem;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-color, #0f172a);
-  border: 1px solid var(--border-color, #cbd5e1);
+  border: 1.5px solid var(--border-color, #cbd5e1);
   transition: all 0.2s;
 }
 
@@ -201,10 +165,10 @@
   background: #2563eb;
   color: white;
   border: none;
-  padding: 0.45rem 1rem;
+  padding: 0.5rem 1.15rem;
   border-radius: 0.5rem;
   font-size: 0.875rem;
-  font-weight: 700;
+  font-weight: 800;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -248,7 +212,7 @@
 }
 
 .hamburger span {
-  width: 20px;
+  width: 22px;
   height: 2px;
   background: var(--text-color, #0f172a);
   border-radius: 2px;

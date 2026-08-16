@@ -131,13 +131,19 @@ const LoginPage = () => {
       <div className="login-container">
         {/* Left Side Branding */}
         <div className="login-info">
-          <div className="platform-tag-pill">🇮🇳 Pan-India Work Network</div>
-          <h1>WorkMate India</h1>
-          <p>The marketplace for part-time gigs, daily wages, and certified doorstep technicians.</p>
+          <div className="platform-tag-pill">🇮🇳 Available Across India</div>
+          <div className="auth-logo-header">
+            <img src="/sewaa-logo.png" alt="SEWAA Logo" className="auth-brand-logo" />
+            <div>
+              <h1>SEWAA India</h1>
+              <p className="auth-brand-sub">Part-Time Jobs & Local Services</p>
+            </div>
+          </div>
+          <p className="auth-brand-tagline">Find work. Find services. Connect locally.</p>
           <div className="login-features">
-            <div className="feature"><span className="icon">⚡</span><span>Instant local part-time work in your city</span></div>
-            <div className="feature"><span className="icon">🛡️</span><span>24x7 Safety & Emergency SOS Protection</span></div>
-            <div className="feature"><span className="icon">🪪</span><span>Privacy-preserving masked ID verification</span></div>
+            <div className="feature"><span className="icon">⚡</span><span>Instant local part-time work & events</span></div>
+            <div className="feature"><span className="icon">🔧</span><span>Trusted technicians & appliance repair</span></div>
+            <div className="feature"><span className="icon">🪪</span><span>Privacy-compliant identity verification</span></div>
             <div className="feature"><span className="icon">💵</span><span>Daily & weekly payout options</span></div>
           </div>
         </div>

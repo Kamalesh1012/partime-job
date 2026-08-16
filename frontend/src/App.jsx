@@ -3,8 +3,10 @@ import './App.css';
 
 // Pages
 import HomePage from './pages/HomePage';
+import EventsPage from './pages/EventsPage';
 import ServicesPage from './pages/ServicesPage';
 import ActivityPage from './pages/ActivityPage';
+import ContactPage from './pages/ContactPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import StudentDashboard from './pages/StudentDashboard';
@@ -62,8 +64,10 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/jobs" element={<HomePage />} />
+          <Route path="/events" element={<EventsPage />} />
           <Route path="/services" element={<ServicesPage />} />
           <Route path="/activity" element={<ActivityPage />} />
+          <Route path="/contact" element={<ContactPage />} />
           <Route path="/login" element={<LoginPage setIsLoggedIn={setIsLoggedIn} setUserType={setUserType} />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/jobs/:id" element={<JobDetailsPage />} />

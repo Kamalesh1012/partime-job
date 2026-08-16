@@ -1,18 +1,10 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { useSafetyStore, useAuthStore } from '../store';
+import { useAuthStore } from '../store';
 import './BottomNav.css';
 
 export default function BottomNav() {
-  const { openSOSModal } = useSafetyStore();
-  const { userType } = useAuthStore();
   const location = useLocation();
-
-  const getDashboardPath = () => {
-    if (userType === 'employer') return '/employer-dashboard';
-    if (userType === 'admin') return '/admin-dashboard';
-    return '/activity';
-  };
 
   return (
     <nav className="bottom-nav-bar" aria-label="Mobile Navigation">
@@ -25,25 +17,12 @@ export default function BottomNav() {
       </NavLink>
 
       <NavLink
-        to="/jobs"
-        className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}
+        to="/events"
+        className={({ isActive }) => `bottom-nav-item ${isActive || location.pathname === '/jobs' ? 'active' : ''}`}
       >
-        <span className="bottom-nav-icon">💼</span>
-        <span className="bottom-nav-label">Jobs</span>
+        <span className="bottom-nav-icon">🎪</span>
+        <span className="bottom-nav-label">Events</span>
       </NavLink>
-
-      {/* Floating SOS Trigger Button in Center */}
-      <button
-        className="bottom-nav-sos-btn"
-        onClick={() => openSOSModal()}
-        aria-label="Emergency SOS"
-        title="Emergency Safety & SOS"
-      >
-        <span className="sos-btn-inner">
-          <span className="sos-icon">🚨</span>
-          <span className="sos-text">SOS</span>
-        </span>
-      </button>
 
       <NavLink
         to="/services"

@@ -70,14 +70,20 @@ const RegisterPage = () => {
       <div className="login-container">
         {/* Left Side */}
         <div className="login-info">
-          <div className="platform-tag-pill">🇮🇳 Join WorkMate India</div>
-          <h1>Find Work & Hire Locally</h1>
-          <p>Sign up in under 60 seconds to access part-time jobs and verified local home services across India.</p>
+          <div className="platform-tag-pill">🇮🇳 Join SEWAA India</div>
+          <div className="auth-logo-header">
+            <img src="/sewaa-logo.png" alt="SEWAA Logo" className="auth-brand-logo" />
+            <div>
+              <h1>SEWAA India</h1>
+              <p className="auth-brand-sub">Part-Time Jobs & Local Services</p>
+            </div>
+          </div>
+          <p className="auth-brand-tagline">Find work. Find services. Connect locally.</p>
           <div className="login-features">
-            <div className="feature"><span className="icon">✓</span><span>Free to join for workers & customers</span></div>
-            <div className="feature"><span className="icon">✓</span><span>Direct doorstep booking & hourly gigs</span></div>
-            <div className="feature"><span className="icon">✓</span><span>24x7 Safety & SOS Emergency Network</span></div>
-            <div className="feature"><span className="icon">✓</span><span>Transparent pay & trusted badge ratings</span></div>
+            <div className="feature"><span className="icon">✓</span><span>Free to join for workers, technicians & customers</span></div>
+            <div className="feature"><span className="icon">✓</span><span>Direct doorstep booking & flexible hourly gigs</span></div>
+            <div className="feature"><span className="icon">✓</span><span>Verified profiles with trusted badge ratings</span></div>
+            <div className="feature"><span className="icon">✓</span><span>Transparent same-day & weekly pay options</span></div>
           </div>
         </div>
 

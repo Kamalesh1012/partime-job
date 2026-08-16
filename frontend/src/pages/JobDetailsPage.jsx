@@ -91,8 +91,9 @@ const JobDetailsPage = () => {
               </div>
               <p className="job-company">{job.employer_name || 'Company'}</p>
               <div className="job-meta">
-                <span>📍 {job.location || 'Chennai'}</span>
+                <span>📍 {job.area ? `${job.area}, ${job.city}` : job.location || job.city || 'Pan-India'}</span>
                 <span>📁 {job.category}</span>
+                {job.shift && <span>⏰ {job.shift}</span>}
                 {job.experience_required && <span>💼 {job.experience_required}</span>}
               </div>
               {(job.salary_min || job.salary_max) && (
