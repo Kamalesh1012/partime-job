@@ -1,6 +1,5 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { useAuthStore } from '../store';
 import './BottomNav.css';
 
 export default function BottomNav() {
@@ -17,18 +16,18 @@ export default function BottomNav() {
       </NavLink>
 
       <NavLink
-        to="/events"
-        className={({ isActive }) => `bottom-nav-item ${isActive || location.pathname === '/jobs' ? 'active' : ''}`}
+        to="/jobs"
+        className={({ isActive }) => `bottom-nav-item ${isActive || location.pathname.startsWith('/jobs') ? 'active' : ''}`}
       >
-        <span className="bottom-nav-icon">🎪</span>
-        <span className="bottom-nav-label">Events</span>
+        <span className="bottom-nav-icon">💼</span>
+        <span className="bottom-nav-label">Jobs</span>
       </NavLink>
 
       <NavLink
         to="/services"
         className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}
       >
-        <span className="bottom-nav-icon">🔧</span>
+        <span className="bottom-nav-icon">🛠</span>
         <span className="bottom-nav-label">Services</span>
       </NavLink>
 

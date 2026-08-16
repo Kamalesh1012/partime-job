@@ -1,5 +1,14 @@
-// Placeholder pages - to be implemented
+export { default as HomePage } from './HomePage';
+export { default as JobsPage } from './JobsPage';
+export { default as LocationPage } from './LocationPage';
+export { default as EventsPage } from './EventsPage';
+export { default as ServicesPage } from './ServicesPage';
+export { default as ActivityPage } from './ActivityPage';
+export { default as ContactPage } from './ContactPage';
+export { default as LoginPage } from './LoginPage';
+export { default as RegisterPage } from './RegisterPage';
+export { default as StudentDashboard } from './StudentDashboard';
 export { default as EmployerDashboard } from './EmployerDashboard';
-export { default as AdminDashboard } from './AdminDashboard';
 export { default as JobDetailsPage } from './JobDetailsPage';
 export { default as ProfilePage } from './ProfilePage';
+export { default as AdminDashboard } from './AdminDashboard';

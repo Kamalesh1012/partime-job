@@ -7,7 +7,7 @@ const Navbar = ({ isLoggedIn, setIsLoggedIn, userType, isDarkMode, toggleTheme }
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const logout = useAuthStore((state) => state.logout);
-  const { selectedCity, selectedArea, openLocationModal } = useLocationStore();
+  const { selectedCity, selectedArea } = useLocationStore();
 
   const handleLogout = () => {
     logout();
@@ -32,21 +32,26 @@ const Navbar = ({ isLoggedIn, setIsLoggedIn, userType, isDarkMode, toggleTheme }
             </div>
           </Link>
 
-          {/* Location Selector Pill */}
-          <button className="nav-location-pill" onClick={openLocationModal} title="Change Location">
+          {/* Location Selector Pill -> Navigates to /location */}
+          <button
+            className="nav-location-pill"
+            onClick={() => navigate('/location')}
+            title="Change Location"
+          >
             <span className="location-pin-icon">📍</span>
             <span className="location-city-name">{displayLocation}</span>
             <span className="location-arrow">▾</span>
           </button>
         </div>
 
-        {/* Right Side: Links & Auth Controls (SOS completely removed) */}
+        {/* Right Side: Links & Auth Controls */}
         <div className="nav-right-group">
           {/* Desktop Navigation Links */}
           <div className="desktop-links">
             <Link to="/" className="nav-link">Home</Link>
-            <Link to="/events" className="nav-link">Events</Link>
+            <Link to="/jobs" className="nav-link">Jobs</Link>
             <Link to="/services" className="nav-link">Services</Link>
+            <Link to="/events" className="nav-link">Events</Link>
             <Link to="/activity" className="nav-link">Activity</Link>
           </div>
 
@@ -85,12 +90,13 @@ const Navbar = ({ isLoggedIn, setIsLoggedIn, userType, isDarkMode, toggleTheme }
       {/* Mobile Drawer Menu */}
       {isMenuOpen && (
         <div className="mobile-drawer-menu">
-          <button className="drawer-location-btn" onClick={() => { openLocationModal(); setIsMenuOpen(false); }}>
+          <button className="drawer-location-btn" onClick={() => { navigate('/location'); setIsMenuOpen(false); }}>
             📍 Location: <strong>{displayLocation}</strong> (Tap to switch)
           </button>
           <Link to="/" className="drawer-link" onClick={() => setIsMenuOpen(false)}>🏠 Home</Link>
-          <Link to="/events" className="drawer-link" onClick={() => setIsMenuOpen(false)}>🎪 Events & Gigs</Link>
+          <Link to="/jobs" className="drawer-link" onClick={() => setIsMenuOpen(false)}>💼 Part-Time Jobs</Link>
           <Link to="/services" className="drawer-link" onClick={() => setIsMenuOpen(false)}>🔧 Technicians & Services</Link>
+          <Link to="/events" className="drawer-link" onClick={() => setIsMenuOpen(false)}>🎪 Events & Gigs</Link>
           <Link to="/activity" className="drawer-link" onClick={() => setIsMenuOpen(false)}>⚡ Activity & Bookings</Link>
           <Link to="/profile" className="drawer-link" onClick={() => setIsMenuOpen(false)}>👤 Profile & Settings</Link>
           <Link to="/contact" className="drawer-link" onClick={() => setIsMenuOpen(false)}>📞 Contact SEWAA</Link>

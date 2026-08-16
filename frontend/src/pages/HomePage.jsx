@@ -1,660 +1,466 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { jobsAPI, servicesAPI, locationsAPI } from '../services/api';
-import { useLocationStore, useAuthStore } from '../store';
-import { PART_TIME_JOB_CATEGORIES, TECHNICIAN_SERVICE_CATEGORIES, WORK_SHIFTS, JOB_TYPE_FILTERS } from '../data/categoriesData';
-import InteractiveMapView from '../components/InteractiveMapView';
+import { useLocationStore } from '../store';
+import { PART_TIME_JOB_CATEGORIES, TECHNICIAN_SERVICE_CATEGORIES } from '../data/categoriesData';
 import './HomePage.css';
 
-const HomePage = () => {
+const QUICK_CATEGORIES = [
+  { id: 'Delivery', icon: '🚚', label: 'Delivery', path: '/jobs?cat=Delivery' },
+  { id: 'Daily wage', icon: '⚡', label: 'Daily Wage', path: '/jobs?type=Daily%20wage' },
+  { id: 'Store Assistant', icon: '🏪', label: 'Retail & Store', path: '/jobs?cat=Store%20Assistant' },
+  { id: 'Event Staff', icon: '🎉', label: 'Event Work', path: '/jobs?cat=Event%20Staff' },
+  { id: 'Electrician', icon: '⚡', label: 'Electrician', path: '/services?cat=Electrician' },
+  { id: 'Plumber', icon: '🔧', label: 'Plumbing', path: '/services?cat=Plumber' },
+  { id: 'AC Repair', icon: '❄️', label: 'AC Repair', path: '/services?cat=AC%20Repair' },
+  { id: 'Cleaning', icon: '🧹', label: 'Cleaning', path: '/jobs?cat=Cleaning' },
+  { id: 'Security', icon: '🔒', label: 'Security', path: '/jobs?cat=Security' },
+  { id: 'Data Entry', icon: '💻', label: 'Data Entry', path: '/jobs?cat=Data%20Entry' },
+];
+
+export default function HomePage() {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
-  const { selectedCity, selectedState, selectedArea, radiusKm, setLocation, setRadius, openLocationModal } = useLocationStore();
+  const {
+    selectedCity,
+    selectedState,
+    selectedArea,
+    state_id,
+    district_id,
+    latitude,
+    longitude,
+    radiusKm,
+    setLocation,
+  } = useLocationStore();
 
-  const [activeTab, setActiveTab] = useState('jobs'); // 'jobs' | 'services'
-  const [viewMode, setViewMode] = useState('split'); // 'split' | 'grid' | 'map'
-  const [jobs, setJobs] = useState([]);
-  const [technicians, setTechnicians] = useState([]);
-  const [jobCounts, setJobCounts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedShift, setSelectedShift] = useState('all');
-  const [selectedJobType, setSelectedJobType] = useState('all');
-  const [selectedRadius, setSelectedRadius] = useState(15);
-  const [loading, setLoading] = useState(true);
-  const [gpsLoading, setGpsLoading] = useState(false);
+  const [nearbyJobs, setNearbyJobs] = useState([]);
+  const [popularServices, setPopularServices] = useState([]);
+  const [loadingJobs, setLoadingJobs] = useState(true);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [gpsDetecting, setGpsDetecting] = useState(false);
   const [gpsError, setGpsError] = useState('');
-  const [userCoords, setUserCoords] = useState(null);
 
-  // Booking Modal State
+  // Service Quick Booking Modal
   const [selectedTechToBook, setSelectedTechToBook] = useState(null);
   const [bookingProblem, setBookingProblem] = useState('');
   const [bookingDate, setBookingDate] = useState('');
   const [bookingTimeSlot, setBookingTimeSlot] = useState('Morning (9 AM - 12 PM)');
   const [bookingAddress, setBookingAddress] = useState('');
-  const [bookingSubmitted, setBookingSubmitted] = useState(false);
+  const [bookingSuccess, setBookingSuccess] = useState(false);
+
+  const displayLocation = selectedArea
+    ? `${selectedArea}, ${selectedCity}`
+    : `${selectedCity}, ${selectedState}`;
 
   useEffect(() => {
-    fetchFeedData();
-    fetchLocationCounts();
-  }, [selectedCity, selectedState, selectedCategory, selectedShift, selectedJobType, selectedRadius]);
+    fetchHomeData();
+  }, [selectedCity, selectedState, state_id, district_id]);
 
-  const fetchLocationCounts = async () => {
+  const fetchHomeData = async () => {
+    // 1. Fetch Nearby Jobs
     try {
-      const res = await jobsAPI.getJobCountsByLocation();
-      if (res.data?.states) {
-        setJobCounts(res.data.states);
+      setLoadingJobs(true);
+      let res;
+      if (latitude && longitude) {
+        res = await jobsAPI.getNearbyJobs(latitude, longitude, radiusKm || 20);
+      } else {
+        res = await jobsAPI.getJobs({ city: selectedCity, state: selectedState, limit: 6 });
       }
+      setNearbyJobs(res.data?.data?.slice(0, 6) || []);
     } catch (e) {
-      console.error('Error loading job counts:', e);
-    }
-  };
-
-  const fetchFeedData = async () => {
-    try {
-      setLoading(true);
-      const params = {
-        city: selectedCity,
-        state: selectedState,
-        category: selectedCategory || undefined,
-        shift: selectedShift !== 'all' ? selectedShift : undefined,
-        job_type: selectedJobType !== 'all' ? selectedJobType : undefined,
-      };
-
-      const [jobsRes, techRes] = await Promise.all([
-        jobsAPI.getJobs(params),
-        servicesAPI.getTechnicians({ city: selectedCity, category: selectedCategory || undefined }),
-      ]);
-
-      setJobs(jobsRes.data?.data || []);
-      setTechnicians(techRes.data?.data || []);
-    } catch (error) {
-      console.error('Error fetching home feed:', error);
+      console.error('Error loading home jobs:', e);
     } finally {
-      setLoading(false);
+      setLoadingJobs(false);
+    }
+
+    // 2. Fetch Popular Technicians
+    try {
+      setLoadingServices(true);
+      const sRes = await servicesAPI.getTechnicians({ city: selectedCity });
+      setPopularServices(sRes.data?.data?.slice(0, 4) || []);
+    } catch (e) {
+      console.error('Error loading technicians:', e);
+    } finally {
+      setLoadingServices(false);
     }
   };
 
-  // Browser GPS Geolocation "Find Jobs Near Me"
-  const handleUseCurrentLocation = () => {
+  const handleSearch = (e) => {
+    if (e) e.preventDefault();
+    if (!searchQuery.trim()) {
+      navigate('/jobs');
+      return;
+    }
+    navigate(`/jobs?q=${encodeURIComponent(searchQuery.trim())}`);
+  };
+
+  const handleUseGPS = () => {
     if (!navigator.geolocation) {
       setGpsError('Geolocation is not supported by your browser.');
       return;
     }
 
-    setGpsLoading(true);
+    setGpsDetecting(true);
     setGpsError('');
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setUserCoords([latitude, longitude]);
-
+        const { latitude: lat, longitude: lng } = pos.coords;
         try {
-          // 1. Reverse geocode to find nearest State/City
-          const geoRes = await locationsAPI.reverseGeocode(latitude, longitude);
+          const geoRes = await locationsAPI.reverseGeocode(lat, lng);
           if (geoRes.data?.nearest_city) {
             const nc = geoRes.data.nearest_city;
-            setLocation(nc.district_name || nc.name, nc.state_name, nc.name);
+            setLocation({
+              city: nc.district_name || nc.name,
+              state: nc.state_name,
+              area: nc.name,
+              state_id: nc.state_id,
+              district_id: nc.district_id,
+              city_id: nc.id,
+              latitude: nc.latitude || lat,
+              longitude: nc.longitude || lng,
+            });
+            setGpsDetecting(false);
+            return;
           }
-
-          // 2. Fetch nearby jobs with Haversine distance
-          const nearbyRes = await jobsAPI.getNearbyJobs(latitude, longitude, selectedRadius);
-          if (nearbyRes.data?.data) {
-            setJobs(nearbyRes.data.data);
-          }
-        } catch (err) {
-          console.error('Error reverse geocoding:', err);
-        } finally {
-          setGpsLoading(false);
+        } catch (e) {
+          console.error('GPS reverse geocode error:', e);
         }
+
+        setLocation({
+          city: 'Chennai',
+          state: 'Tamil Nadu',
+          area: 'Sholinganallur',
+          state_id: 'ST-TN',
+          district_id: 'DIST-TN-CHENN',
+          latitude: lat,
+          longitude: lng,
+        });
+        setGpsDetecting(false);
       },
-      (err) => {
-        setGpsLoading(false);
-        setGpsError('Location access denied or unavailable. Please pick location manually.');
+      () => {
+        setGpsDetecting(false);
+        setGpsError('GPS permission was denied. Tap "Change Location" to choose manually.');
       },
-      { timeout: 10000 }
+      { timeout: 5000 }
     );
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      fetchFeedData();
-      return;
-    }
-    try {
-      setLoading(true);
-      const res = await jobsAPI.searchJobs(searchQuery, selectedCity);
-      setJobs(res.data?.data || []);
-    } catch (error) {
-      console.error('Error searching:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleBookTechnician = async (e) => {
+  const handleConfirmBooking = async (e) => {
     e.preventDefault();
     if (!selectedTechToBook) return;
 
     try {
       await servicesAPI.bookService({
-        customer_id: user?.id || 'guest-customer',
+        customer_id: 'verified-user',
         technician_id: selectedTechToBook.id,
-        category: selectedTechToBook.service_categories?.[0] || 'General Service',
-        service_title: `${selectedTechToBook.full_name} - Doorstep Service`,
-        problem_description: bookingProblem || 'General diagnosis & service required',
+        category: selectedTechToBook.service_categories?.[0] || 'General Repair',
+        service_title: `${selectedTechToBook.full_name} Doorstep Service`,
+        problem_description: bookingProblem || 'Doorstep inspection & maintenance',
         city: selectedCity,
         state: selectedState,
-        service_address: bookingAddress || `${selectedArea ? `${selectedArea}, ` : ''}${selectedCity}`,
+        service_address: bookingAddress || `${displayLocation}, Street Address`,
         preferred_date: bookingDate || new Date().toISOString().split('T')[0],
         preferred_time_slot: bookingTimeSlot,
         estimated_cost: selectedTechToBook.visiting_charge || 199.0,
       });
-      setBookingSubmitted(true);
+
+      setBookingSuccess(true);
       setTimeout(() => {
-        setBookingSubmitted(false);
+        setBookingSuccess(false);
         setSelectedTechToBook(null);
         navigate('/activity');
       }, 1500);
-    } catch (error) {
-      console.error('Error booking technician:', error);
+    } catch (err) {
+      console.error('Booking failed:', err);
     }
   };
 
-  const displayLocation = selectedArea ? `${selectedArea}, ${selectedCity}` : selectedCity;
-
   return (
-    <div className="home-container">
-      {/* Pan-India Location Selector Bar */}
-      <header className="location-bar-header">
-        <div className="location-info-chip" onClick={openLocationModal}>
-          <span className="loc-icon">📍</span>
-          <div className="loc-text">
-            <span className="loc-sub">Selected Work Location</span>
-            <strong className="loc-title">
-              {displayLocation}, {selectedState}
-              <span className="loc-badge">36 States/UTs</span>
-            </strong>
+    <div className="sewaa-home-page">
+      {/* 1. Mobile Compact Location Bar */}
+      <section className="home-location-strip">
+        <div className="loc-indicator-pill" onClick={() => navigate('/location')}>
+          <span className="loc-pin-icon">📍</span>
+          <div className="loc-name-group">
+            <span className="loc-sub-tag">Work & Services in</span>
+            <strong className="loc-main-name">{displayLocation}</strong>
           </div>
+          <span className="loc-arrow-btn">Change ▾</span>
         </div>
 
-        <div className="location-actions-group">
-          <button
-            className={`use-gps-btn ${gpsLoading ? 'loading' : ''}`}
-            onClick={handleUseCurrentLocation}
-            title="Use device GPS location"
-          >
-            {gpsLoading ? '📡 Locating...' : '🎯 Near Me'}
-          </button>
-          <button className="change-loc-quick-btn" onClick={openLocationModal}>
-            Change Location ▾
-          </button>
-        </div>
-      </header>
+        <button
+          className={`home-gps-btn ${gpsDetecting ? 'pulsing' : ''}`}
+          onClick={handleUseGPS}
+          title="Use GPS for nearby jobs"
+        >
+          {gpsDetecting ? '📡 Locating...' : '🎯 Near Me'}
+        </button>
+      </section>
 
       {gpsError && (
-        <div className="gps-error-banner">
+        <div className="home-gps-warning">
           <span>⚠️ {gpsError}</span>
           <button onClick={() => setGpsError('')}>✕</button>
         </div>
       )}
 
-      {/* Hero Section */}
-      <section className="hero-compact-section">
-        <div className="hero-badge-pill">
-          ⚡ PAN-INDIA PART-TIME JOBS & DOORSTEP SERVICES
+      {/* 2. Hero Section */}
+      <section className="home-hero-clean">
+        <div className="hero-brand-pill">
+          ⚡ INDIA'S PART-TIME & LOCAL SERVICES PLATFORM
         </div>
-        <h1 className="hero-headline">
-          Find Flexible Work & Trusted Services <span className="text-highlight">Across India</span>
+        <h1 className="hero-main-title">
+          Your Work. Your Service. <span className="title-gradient">Your SEWAA.</span>
         </h1>
-        <p className="hero-subtext">
-          Instant part-time gigs, daily wage opportunities, banquet helpers, store staff, delivery shifts, and verified technicians in <strong>{displayLocation}</strong>.
+        <p className="hero-subtitle">
+          Find flexible part-time shifts, daily gigs, event work, and doorstep technicians near you in <strong>{selectedCity}</strong>.
         </p>
 
-        {/* Search Bar */}
-        <div className="hero-search-box">
-          <div className="search-input-wrap">
-            <span className="search-icon">🔍</span>
-            <input
-              type="text"
-              placeholder={`Search part-time gigs or technicians in ${displayLocation}...`}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            />
-          </div>
-          <button className="search-action-btn" onClick={handleSearch}>
+        {/* Global Search Bar */}
+        <form onSubmit={handleSearch} className="home-search-bar">
+          <span className="search-lens-icon">🔍</span>
+          <input
+            type="text"
+            placeholder={`Search for jobs or services in ${selectedCity}...`}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <button type="submit" className="search-submit-btn">
             Search
           </button>
-        </div>
-
-        {/* Main Tab Switcher */}
-        <div className="main-tab-switcher">
-          <button
-            className={`tab-switch-btn ${activeTab === 'jobs' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('jobs'); setSelectedCategory(''); }}
-          >
-            💼 Part-Time & Daily Gigs ({jobs.length})
-          </button>
-          <button
-            className={`tab-switch-btn ${activeTab === 'services' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('services'); setSelectedCategory(''); }}
-          >
-            🔧 Doorstep Technicians ({technicians.length})
-          </button>
-        </div>
+        </form>
       </section>
 
-      {/* Category Pills Carousel */}
-      <section className="category-carousel-section">
-        <div className="category-scroll-container">
-          <button
-            className={`cat-pill ${selectedCategory === '' ? 'active' : ''}`}
-            onClick={() => setSelectedCategory('')}
-          >
-            <span className="cat-icon">⚡</span>
-            <span className="cat-label">All Categories</span>
-          </button>
-
-          {activeTab === 'jobs'
-            ? PART_TIME_JOB_CATEGORIES.map((cat) => (
-                <button
-                  key={cat.id}
-                  className={`cat-pill ${selectedCategory === cat.id ? 'active' : ''}`}
-                  onClick={() => setSelectedCategory(cat.id === selectedCategory ? '' : cat.id)}
-                >
-                  <span className="cat-icon">{cat.icon}</span>
-                  <span className="cat-label">{cat.name}</span>
-                </button>
-              ))
-            : TECHNICIAN_SERVICE_CATEGORIES.map((cat) => (
-                <button
-                  key={cat.id}
-                  className={`cat-pill ${selectedCategory === cat.id ? 'active' : ''}`}
-                  onClick={() => setSelectedCategory(cat.id === selectedCategory ? '' : cat.id)}
-                >
-                  <span className="cat-icon">{cat.icon}</span>
-                  <span className="cat-label">{cat.name}</span>
-                </button>
-              ))}
+      {/* 3. Popular Categories (Horizontal Scrolling) */}
+      <section className="home-categories-section">
+        <div className="section-title-row">
+          <h2>Popular Categories</h2>
+          <span className="section-sub-hint">Instant part-time & local work</span>
         </div>
-      </section>
 
-      {/* Shift & Radius Filters */}
-      {activeTab === 'jobs' && (
-        <section className="feed-filters-bar">
-          <div className="shift-chips">
-            <span className="filter-group-label">Shift:</span>
-            {WORK_SHIFTS.map((s) => (
-              <button
-                key={s.id}
-                className={`filter-chip ${selectedShift === s.id ? 'active' : ''}`}
-                onClick={() => setSelectedShift(s.id)}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="radius-chips">
-            <span className="filter-group-label">Radius:</span>
-            {[5, 10, 15, 25, 50].map((r) => (
-              <button
-                key={r}
-                className={`filter-chip radius-chip ${selectedRadius === r ? 'active' : ''}`}
-                onClick={() => setSelectedRadius(r)}
-              >
-                📍 {r} km
-              </button>
-            ))}
-          </div>
-
-          <div className="job-type-chips">
-            {JOB_TYPE_FILTERS.map((t) => (
-              <button
-                key={t.id}
-                className={`filter-chip ${selectedJobType === t.id ? 'active' : ''}`}
-                onClick={() => setSelectedJobType(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Main Feed Content with Split View */}
-      <main className="feed-main-section">
-        {loading ? (
-          <div className="feed-loading-spinner">
-            <div className="spinner-ring"></div>
-            <p>Finding verified opportunities in {displayLocation}...</p>
-          </div>
-        ) : activeTab === 'jobs' ? (
-          <div className="jobs-feed-list">
-            <div className="feed-header-info">
-              <div>
-                <h3>Available Opportunities in {displayLocation}</h3>
-                <span className="jobs-count-tag">{jobs.length} Active Listings</span>
-              </div>
-              <div className="view-mode-toggle-group">
-                <button
-                  className={`view-mode-btn ${viewMode === 'split' ? 'active' : ''}`}
-                  onClick={() => setViewMode('split')}
-                >
-                  ⚡ Split View
-                </button>
-                <button
-                  className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
-                  onClick={() => setViewMode('grid')}
-                >
-                  📋 List
-                </button>
-                <button
-                  className={`view-mode-btn ${viewMode === 'map' ? 'active' : ''}`}
-                  onClick={() => setViewMode('map')}
-                >
-                  🗺️ Map
-                </button>
-              </div>
+        <div className="categories-horizontal-scroll">
+          {QUICK_CATEGORIES.map((cat) => (
+            <div
+              key={cat.id}
+              className="cat-card-item"
+              onClick={() => navigate(cat.path)}
+            >
+              <span className="cat-icon-badge">{cat.icon}</span>
+              <span className="cat-label-text">{cat.label}</span>
             </div>
+          ))}
+        </div>
+      </section>
 
-            {viewMode === 'map' ? (
-              <InteractiveMapView
-                jobs={jobs}
-                technicians={technicians}
-                onSelectJob={(job) => navigate(`/jobs/${job.id}`)}
-                onSelectTechnician={(t) => setSelectedTechToBook(t)}
-                initialCoords={userCoords}
-                height="500px"
-              />
-            ) : viewMode === 'split' ? (
-              /* Desktop Split View: Left List + Right Interactive Map */
-              <div className="split-view-container">
-                <div className="split-list-column">
-                  {jobs.length === 0 ? (
-                    <div className="empty-feed-card">
-                      <span className="empty-icon">📍</span>
-                      <h4>No opportunities match in {displayLocation}</h4>
-                      <p>Try switching location or clearing category filters.</p>
-                      <button className="reset-filters-btn" onClick={() => { setSelectedCategory(''); setSelectedShift('all'); }}>
-                        Reset Filters
-                      </button>
-                    </div>
-                  ) : (
-                    jobs.map((job) => (
-                      <div key={job.id} className="job-opportunity-card split-card">
-                        <div className="job-card-top">
-                          <div className="job-badge-group">
-                            <span className="job-type-badge">{job.job_type || 'Part-Time'}</span>
-                            {job.is_urgent && <span className="urgent-badge">⚡ Urgent</span>}
-                            {job.distance_display && <span className="dist-badge">📍 {job.distance_display}</span>}
-                          </div>
-                          <span className="job-shift-tag">{job.shift || 'Flexible Shift'}</span>
-                        </div>
+      {/* 4. Nearby Opportunities Feed (No Map) */}
+      <section className="home-feed-section">
+        <div className="section-title-row">
+          <div>
+            <h2>Nearby Opportunities</h2>
+            <span className="section-sub-hint">Verified flexible shifts in {displayLocation}</span>
+          </div>
+          <button className="view-all-link-btn" onClick={() => navigate('/jobs')}>
+            View All Jobs ({nearbyJobs.length}) →
+          </button>
+        </div>
 
-                        <h4 className="job-card-title">{job.title}</h4>
-                        <p className="job-card-desc">{job.description?.slice(0, 100)}...</p>
-
-                        <div className="job-meta-row">
-                          <span className="job-loc">📍 {job.area_name || job.area || job.city_name || job.city}</span>
-                          <span className="job-salary">
-                            ₹{job.salary_min} - ₹{job.salary_max} <small>/{job.payment_frequency || 'day'}</small>
-                          </span>
-                        </div>
-
-                        <div className="job-card-footer">
-                          <span className="applicants-tag">👥 {job.applications_count || 0} applied</span>
-                          <button
-                            className="apply-job-btn"
-                            onClick={() => navigate(`/jobs/${job.id}`)}
-                          >
-                            View & Apply →
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div className="split-map-column">
-                  <div className="sticky-map-wrapper">
-                    <InteractiveMapView
-                      jobs={jobs}
-                      technicians={technicians}
-                      onSelectJob={(job) => navigate(`/jobs/${job.id}`)}
-                      onSelectTechnician={(t) => setSelectedTechToBook(t)}
-                      initialCoords={userCoords}
-                      height="580px"
-                      showFilters={false}
-                    />
-                  </div>
-                </div>
-              </div>
-            ) : jobs.length === 0 ? (
-              <div className="empty-feed-card">
-                <span className="empty-icon">📍</span>
-                <h4>No opportunities match your current filters in {displayLocation}</h4>
-                <p>Try switching to "All India" or clearing category filters.</p>
-                <button className="reset-filters-btn" onClick={() => { setSelectedCategory(''); setSelectedShift('all'); setSelectedJobType('all'); }}>
-                  Reset Filters
-                </button>
-              </div>
-            ) : (
-              <div className="jobs-cards-grid">
-                {jobs.map((job) => (
-                  <div key={job.id} className="job-opportunity-card">
-                    <div className="job-card-top">
-                      <div className="job-badge-group">
-                        <span className="job-type-badge">{job.job_type || 'Part-Time'}</span>
-                        {job.is_urgent && <span className="urgent-badge">⚡ Urgent</span>}
-                        {job.is_weekend && <span className="weekend-badge">📅 Weekend</span>}
-                        {job.distance_display && <span className="dist-badge">📍 {job.distance_display}</span>}
-                      </div>
-                      <span className="job-shift-tag">{job.shift || 'Flexible Shift'}</span>
-                    </div>
-
-                    <h4 className="job-card-title">{job.title}</h4>
-                    <p className="job-card-desc">{job.description}</p>
-
-                    <div className="job-meta-row">
-                      <span className="job-loc">📍 {job.area_name || job.area || job.city_name || job.city}</span>
-                      <span className="job-salary">
-                        ₹{job.salary_min} - ₹{job.salary_max} <small>/{job.payment_frequency || 'day'}</small>
-                      </span>
-                    </div>
-
-                    {job.skills_required && job.skills_required.length > 0 && (
-                      <div className="job-skills-wrap">
-                        {job.skills_required.map((sk, idx) => (
-                          <span key={idx} className="skill-bubble">{sk}</span>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="job-card-footer">
-                      <span className="applicants-tag">👥 {job.applications_count || 0} applied</span>
-                      <button
-                        className="apply-job-btn"
-                        onClick={() => navigate(`/jobs/${job.id}`)}
-                      >
-                        View & Apply →
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+        {loadingJobs ? (
+          <div className="home-skeleton-feed">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="feed-skeleton-card" />
+            ))}
+          </div>
+        ) : nearbyJobs.length === 0 ? (
+          <div className="home-empty-notice">
+            <span>📍</span>
+            <h4>No jobs found in {displayLocation}</h4>
+            <p>Try switching to another nearby district or viewing all India jobs.</p>
+            <button className="change-loc-cta" onClick={() => navigate('/location')}>
+              📍 Change Location
+            </button>
           </div>
         ) : (
-          /* Technicians Feed */
-          <div className="technicians-feed-list">
-            <div className="feed-header-info">
-              <div>
-                <h3>Trusted Technicians in {displayLocation}</h3>
-                <span className="jobs-count-tag">{technicians.length} Verified Pros</span>
-              </div>
-              <div className="view-mode-toggle-group">
-                <button
-                  className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
-                  onClick={() => setViewMode('grid')}
-                >
-                  ⚡ Grid View
-                </button>
-                <button
-                  className={`view-mode-btn ${viewMode === 'map' ? 'active' : ''}`}
-                  onClick={() => setViewMode('map')}
-                >
-                  🗺️ Live Map
-                </button>
-              </div>
-            </div>
-
-            {viewMode === 'map' ? (
-              <InteractiveMapView
-                technicians={technicians}
-                jobs={jobs}
-                onSelectTechnician={(t) => setSelectedTechToBook(t)}
-                height="450px"
-              />
-            ) : technicians.length === 0 ? (
-              <div className="empty-feed-card">
-                <span className="empty-icon">🔧</span>
-                <h4>No technicians found in {displayLocation} for this category</h4>
-                <p>Try searching across nearby districts or view all services.</p>
-              </div>
-            ) : (
-              <div className="technicians-cards-grid">
-                {technicians.map((tech) => (
-                  <div key={tech.id} className="technician-pro-card">
-                    <div className="tech-card-header">
-                      <img src={tech.avatar_url} alt={tech.full_name} className="tech-avatar-img" />
-                      <div className="tech-header-meta">
-                        <h4 className="tech-name">{tech.full_name}</h4>
-                        <span className="tech-badge">{tech.badge_type || 'Verified Pro ✓'}</span>
-                        <div className="tech-rating-row">
-                          <span className="star-icon">⭐ {tech.rating}</span>
-                          <span className="reviews-count">({tech.total_reviews} reviews)</span>
-                          <span className="jobs-done">• {tech.completed_jobs} completed</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="tech-skills-row">
-                      {tech.skills?.map((sk, idx) => (
-                        <span key={idx} className="tech-skill-pill">{sk}</span>
-                      ))}
-                    </div>
-
-                    <div className="tech-pricing-row">
-                      <div className="price-item">
-                        <span className="p-label">Visiting Charge</span>
-                        <strong className="p-val">₹{tech.visiting_charge}</strong>
-                      </div>
-                      <div className="price-item">
-                        <span className="p-label">Service Rate</span>
-                        <strong className="p-val">₹{tech.hourly_rate}/hr</strong>
-                      </div>
-                    </div>
-
-                    <div className="tech-location-row">
-                      <span>📍 Serving {tech.area ? `${tech.area}, ` : ''}{tech.city} (within {tech.service_radius_km || 15} km)</span>
-                    </div>
-
-                    <button
-                      className="book-technician-btn"
-                      onClick={() => setSelectedTechToBook(tech)}
-                    >
-                      ⚡ Book Technician Now
-                    </button>
+          <div className="nearby-jobs-grid">
+            {nearbyJobs.map((job) => (
+              <div key={job.id} className="home-job-card">
+                <div className="card-top-header">
+                  <div className="card-badges-row">
+                    <span className="job-badge-type">{job.job_type || 'Part-Time'}</span>
+                    {job.is_urgent && <span className="job-badge-urgent">⚡ Urgent</span>}
+                    {job.distance_display && (
+                      <span className="job-badge-dist">📍 {job.distance_display}</span>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </main>
-
-      {/* Location Job Count Showcase */}
-      {jobCounts.length > 0 && (
-        <section className="location-distribution-section">
-          <div className="loc-dist-header">
-            <h3>🗺️ Live Job Opportunities Across India</h3>
-            <span className="loc-dist-tag">36 States & UTs Active</span>
-          </div>
-          <div className="loc-dist-grid">
-            {jobCounts.slice(0, 8).map((st) => (
-              <div
-                key={st.state_id}
-                className="loc-dist-card"
-                onClick={() => {
-                  setLocation(st.state_name, st.state_name);
-                  window.scrollTo({ top: 300, behavior: 'smooth' });
-                }}
-              >
-                <div className="st-info">
-                  <strong>{st.state_name}</strong>
-                  <small>{st.code} • {st.type}</small>
+                  <span className="card-shift-tag">{job.shift || 'Flexible'}</span>
                 </div>
-                <span className="st-count-chip">{st.job_count} Jobs</span>
+
+                <h3 className="job-headline">{job.title}</h3>
+                <span className="job-company">
+                  🏢 {job.employer_name || job.company_name || 'SEWAA Verified Employer'}
+                </span>
+
+                <div className="job-specs-box">
+                  <span className="specs-loc">
+                    📍 {job.area_name || job.city_name || job.city || selectedCity}
+                  </span>
+                  <span className="specs-pay">
+                    ₹{job.salary_min} - ₹{job.salary_max} <small>/{job.payment_frequency || 'day'}</small>
+                  </span>
+                </div>
+
+                <div className="card-bottom-row">
+                  <span className="applicants-note">
+                    👥 {job.applications_count || 0} applied
+                  </span>
+                  <button
+                    className="view-details-cta"
+                    onClick={() => navigate(`/jobs/${job.id}`)}
+                  >
+                    View Job →
+                  </button>
+                </div>
               </div>
             ))}
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
-      {/* SEWAA Slogan Banner */}
-      <section className="sewaa-slogan-banner">
-        <div className="slogan-badge">SEWAA</div>
-        <h2 className="slogan-title">Your Work. Your Service. Your SEWAA.</h2>
-        <p className="slogan-sub">
-          Find flexible work and trusted local professionals, wherever you are in India.
-        </p>
-        <div className="slogan-buttons">
-          <button className="slogan-btn-primary" onClick={() => navigate('/events')}>
-            Explore Events & Work
+      {/* 5. Popular Doorstep Services Feed */}
+      <section className="home-feed-section">
+        <div className="section-title-row">
+          <div>
+            <h2>Popular Doorstep Services</h2>
+            <span className="section-sub-hint">Verified home technicians & repair pros</span>
+          </div>
+          <button className="view-all-link-btn" onClick={() => navigate('/services')}>
+            All Services →
           </button>
-          <button className="slogan-btn-secondary" onClick={() => navigate('/services')}>
-            Find Nearby Technicians
+        </div>
+
+        {loadingServices ? (
+          <div className="home-skeleton-feed">
+            {[1, 2].map((i) => (
+              <div key={i} className="feed-skeleton-card" />
+            ))}
+          </div>
+        ) : popularServices.length === 0 ? (
+          <div className="home-empty-notice">
+            <span>🔧</span>
+            <h4>No technicians available in {displayLocation} yet</h4>
+            <p>We are onboarding local service providers in this area daily.</p>
+            <button className="change-loc-cta" onClick={() => navigate('/location')}>
+              📍 Change Location
+            </button>
+          </div>
+        ) : (
+          <div className="popular-services-grid">
+            {popularServices.map((tech) => (
+              <div key={tech.id} className="home-service-card">
+                <div className="service-card-header">
+                  <div className="tech-avatar-circle">🔧</div>
+                  <div className="tech-info">
+                    <h4>{tech.full_name}</h4>
+                    <span className="tech-rating">⭐ {tech.rating || 4.9} (Verified Pro)</span>
+                  </div>
+                </div>
+
+                <div className="service-skills-row">
+                  {tech.service_categories?.map((cat, idx) => (
+                    <span key={idx} className="tech-cat-chip">{cat}</span>
+                  ))}
+                </div>
+
+                <div className="service-card-bottom">
+                  <span className="visiting-fee">
+                    ₹{tech.visiting_charge || 199} <small>visit fee</small>
+                  </span>
+                  <button
+                    className="book-tech-cta"
+                    onClick={() => setSelectedTechToBook(tech)}
+                  >
+                    Book Now
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* 6. Why SEWAA Trust & Safety Section */}
+      <section className="why-sewaa-section">
+        <h2>Why Millions Trust SEWAA</h2>
+        <div className="features-grid">
+          <div className="feature-item">
+            <span className="feat-icon">⚡</span>
+            <h4>Daily & Weekly Payouts</h4>
+            <p>Work shifts and get paid on time with zero hidden deductions.</p>
+          </div>
+          <div className="feature-item">
+            <span className="feat-icon">🛡️</span>
+            <h4>Verified Employers & Pros</h4>
+            <p>Every job and technician is verified with government ID checks.</p>
+          </div>
+          <div className="feature-item">
+            <span className="feat-icon">📍</span>
+            <h4>Hyperlocal Opportunities</h4>
+            <p>Find gigs within 5–15 km of your doorstep to save travel time.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* 7. Employer Quick Action CTA */}
+      <section className="employer-cta-card">
+        <div className="emp-cta-content">
+          <span className="emp-cta-tag">FOR BUSINESSES & RESIDENTS</span>
+          <h3>Looking to Hire Workers or Technicians?</h3>
+          <p>Post part-time gigs, delivery shifts, or event helper requirements in 2 minutes.</p>
+          <button
+            className="emp-post-btn"
+            onClick={() => navigate('/employer-dashboard')}
+          >
+            ➕ Post a Job Opportunity
           </button>
         </div>
       </section>
 
-      {/* Technician Booking Modal */}
+      {/* Service Booking Modal */}
       {selectedTechToBook && (
-        <div className="booking-modal-overlay" onClick={() => setSelectedTechToBook(null)}>
-          <div className="booking-modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="booking-modal-header">
-              <div>
-                <h3>Book {selectedTechToBook.full_name}</h3>
-                <span className="booking-sub">{selectedTechToBook.badge_type} • {displayLocation}</span>
-              </div>
+        <div className="modal-overlay" onClick={() => setSelectedTechToBook(null)}>
+          <div className="modal-content booking-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Book Doorstep Service</h2>
               <button className="close-btn" onClick={() => setSelectedTechToBook(null)}>✕</button>
             </div>
 
-            {bookingSubmitted ? (
-              <div className="booking-success-view">
+            {bookingSuccess ? (
+              <div className="booking-success-box">
                 <span className="success-icon">✅</span>
-                <h4>Booking Confirmed!</h4>
-                <p>Technician has been notified and will arrive at your preferred time slot.</p>
+                <h3>Service Booked Successfully!</h3>
+                <p>{selectedTechToBook.full_name} will contact you for confirmation.</p>
               </div>
             ) : (
-              <form className="booking-form" onSubmit={handleBookTechnician}>
+              <form onSubmit={handleConfirmBooking} className="booking-sheet-form">
+                <div className="booking-summary-pill">
+                  <strong>🔧 {selectedTechToBook.full_name}</strong>
+                  <span>₹{selectedTechToBook.visiting_charge || 199} visiting charge</span>
+                </div>
+
                 <label>
-                  <span>Problem Description / Service Details:</span>
+                  <span>Describe the Issue / Problem *</span>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. AC not cooling / Switchboard sparking / Tap leaking"
+                    placeholder="e.g. AC cooling problem, power switch sparking"
                     value={bookingProblem}
                     onChange={(e) => setBookingProblem(e.target.value)}
                   />
                 </label>
 
-                <div className="booking-form-row">
+                <div className="two-inputs-row">
                   <label>
-                    <span>Preferred Date:</span>
+                    <span>Preferred Date *</span>
                     <input
                       type="date"
                       required
@@ -663,39 +469,31 @@ const HomePage = () => {
                     />
                   </label>
                   <label>
-                    <span>Time Slot:</span>
+                    <span>Time Slot</span>
                     <select
                       value={bookingTimeSlot}
                       onChange={(e) => setBookingTimeSlot(e.target.value)}
                     >
-                      <option value="Morning (9 AM - 12 PM)">Morning (9 AM - 12 PM)</option>
-                      <option value="Afternoon (12 PM - 3 PM)">Afternoon (12 PM - 3 PM)</option>
-                      <option value="Evening (3 PM - 7 PM)">Evening (3 PM - 7 PM)</option>
+                      <option>Morning (9 AM - 12 PM)</option>
+                      <option>Afternoon (1 PM - 4 PM)</option>
+                      <option>Evening (5 PM - 8 PM)</option>
                     </select>
                   </label>
                 </div>
 
                 <label>
-                  <span>Doorstep Service Address:</span>
+                  <span>Doorstep Service Address *</span>
                   <input
                     type="text"
                     required
-                    placeholder="Flat/House No., Street, Landmark"
+                    placeholder="House/Flat No, Street, Area"
                     value={bookingAddress}
                     onChange={(e) => setBookingAddress(e.target.value)}
                   />
                 </label>
 
-                <div className="booking-summary-box">
-                  <div className="summary-line">
-                    <span>Visiting / Inspection Fee:</span>
-                    <strong>₹{selectedTechToBook.visiting_charge || 199}</strong>
-                  </div>
-                  <small>Pay directly to technician after service completion.</small>
-                </div>
-
                 <button type="submit" className="confirm-booking-btn">
-                  Confirm Doorstep Booking
+                  Confirm Booking (Pay ₹{selectedTechToBook.visiting_charge || 199} on Arrival)
                 </button>
               </form>
             )}
@@ -704,6 +502,4 @@ const HomePage = () => {
       )}
     </div>
   );
-};
-
-export default HomePage;
+}

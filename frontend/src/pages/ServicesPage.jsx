@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { servicesAPI } from '../services/api';
 import { useLocationStore, useAuthStore } from '../store';
 import { TECHNICIAN_SERVICE_CATEGORIES } from '../data/categoriesData';
@@ -6,8 +7,9 @@ import InteractiveMapView from '../components/InteractiveMapView';
 import './ServicesPage.css';
 
 export default function ServicesPage() {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { selectedCity, selectedState, openLocationModal } = useLocationStore();
+  const { selectedCity, selectedState } = useLocationStore();
 
   const [categories, setCategories] = useState(TECHNICIAN_SERVICE_CATEGORIES);
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -84,7 +86,7 @@ export default function ServicesPage() {
     <div className="services-page-container">
       {/* Location Bar */}
       <div className="services-top-bar">
-        <div className="services-location-chip" onClick={openLocationModal}>
+        <div className="services-location-chip" onClick={() => navigate('/location')}>
           <span>📍 Technicians in <strong>{selectedCity}, {selectedState}</strong></span>
           <span className="switch-tag">Change</span>
         </div>

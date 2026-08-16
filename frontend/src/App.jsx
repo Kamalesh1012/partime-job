@@ -3,6 +3,8 @@ import './App.css';
 
 // Pages
 import HomePage from './pages/HomePage';
+import JobsPage from './pages/JobsPage';
+import LocationPage from './pages/LocationPage';
 import EventsPage from './pages/EventsPage';
 import ServicesPage from './pages/ServicesPage';
 import ActivityPage from './pages/ActivityPage';
@@ -21,6 +23,7 @@ import Footer from './components/Footer';
 import BottomNav from './components/BottomNav';
 import LocationSelectorModal from './components/LocationSelectorModal';
 import SOSModal from './components/SOSModal';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Theme
 import { useTheme } from './hooks/useTheme';
@@ -45,70 +48,76 @@ function App() {
   };
 
   return (
-    <BrowserRouter>
-      <div className={isDarkMode ? 'dark' : 'light'}>
-        <Navbar
-          isLoggedIn={isLoggedIn}
-          setIsLoggedIn={setIsLoggedIn}
-          userType={userType}
-          isDarkMode={isDarkMode}
-          toggleTheme={toggleTheme}
-        />
-
-        {/* Global Pan-India Location Selector Modal */}
-        <LocationSelectorModal />
-
-        {/* Global 24x7 Safety & Emergency SOS Modal */}
-        <SOSModal />
-
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/jobs" element={<HomePage />} />
-          <Route path="/events" element={<EventsPage />} />
-          <Route path="/services" element={<ServicesPage />} />
-          <Route path="/activity" element={<ActivityPage />} />
-          <Route path="/contact" element={<ContactPage />} />
-          <Route path="/login" element={<LoginPage setIsLoggedIn={setIsLoggedIn} setUserType={setUserType} />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/jobs/:id" element={<JobDetailsPage />} />
-          <Route path="/profile" element={<ProfilePage userType={userType} />} />
-
-          {/* Role Dashboard Routes */}
-          <Route
-            path="/student-dashboard"
-            element={
-              <PrivateRoute role="student">
-                <StudentDashboard />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/employer-dashboard"
-            element={
-              <PrivateRoute role="employer">
-                <EmployerDashboard />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/admin-dashboard"
-            element={
-              <PrivateRoute role="admin">
-                <AdminDashboard />
-              </PrivateRoute>
-            }
+    <ErrorBoundary>
+      <BrowserRouter>
+        <div className={isDarkMode ? 'dark' : 'light'}>
+          <Navbar
+            isLoggedIn={isLoggedIn}
+            setIsLoggedIn={setIsLoggedIn}
+            userType={userType}
+            isDarkMode={isDarkMode}
+            toggleTheme={toggleTheme}
           />
 
-          {/* Catch-all */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+          {/* Global Pan-India Location Selector Modal */}
+          <LocationSelectorModal />
 
-        <Footer />
+          {/* Global 24x7 Safety & Emergency SOS Modal */}
+          <SOSModal />
 
-        {/* Mobile First Bottom Navigation Bar */}
-        <BottomNav />
-      </div>
-    </BrowserRouter>
+          <main className="app-main-content">
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/jobs" element={<JobsPage />} />
+              <Route path="/location" element={<LocationPage />} />
+              <Route path="/locations" element={<LocationPage />} />
+              <Route path="/events" element={<EventsPage />} />
+              <Route path="/services" element={<ServicesPage />} />
+              <Route path="/activity" element={<ActivityPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/login" element={<LoginPage setIsLoggedIn={setIsLoggedIn} setUserType={setUserType} />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/jobs/:id" element={<JobDetailsPage />} />
+              <Route path="/profile" element={<ProfilePage userType={userType} />} />
+
+              {/* Role Dashboard Routes */}
+              <Route
+                path="/student-dashboard"
+                element={
+                  <PrivateRoute role="student">
+                    <StudentDashboard />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/employer-dashboard"
+                element={
+                  <PrivateRoute role="employer">
+                    <EmployerDashboard />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/admin-dashboard"
+                element={
+                  <PrivateRoute role="admin">
+                    <AdminDashboard />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* Catch-all route */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
+
+          <Footer />
+
+          {/* Mobile First Bottom Navigation Bar */}
+          <BottomNav />
+        </div>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 
