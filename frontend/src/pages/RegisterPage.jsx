@@ -11,7 +11,7 @@ const RegisterPage = () => {
   const setToken = useAuthStore((state) => state.setToken);
   const setUserType = useAuthStore((state) => state.setUserType);
 
-  const [step, setStep] = useState(1); // 1: Role & Mobile, 2: Profile & Password, 3: Success
+  const [step, setStep] = useState(1); // 1: Role & Mobile, 2: Complete Profile
   const [selectedRole, setSelectedRole] = useState('worker'); // 'worker' | 'technician' | 'employer' | 'customer'
   const [phone, setPhone] = useState('');
   const [fullName, setFullName] = useState('');
@@ -21,12 +21,13 @@ const RegisterPage = () => {
   const [city, setCity] = useState('Chennai');
   const [agreeTerms, setAgreeTerms] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [registeredSuccess, setRegisteredSuccess] = useState(false);
   const [error, setError] = useState('');
 
   const handleNextStep = (e) => {
     e.preventDefault();
-    if (!phone || phone.length < 10) {
-      setError('Please enter a valid 10-digit Indian phone number.');
+    if (!phone || phone.replace(/\D/g, '').length < 10) {
+      setError('Please enter a valid 10-digit Indian mobile number.');
       return;
     }
     setError('');
@@ -36,16 +37,17 @@ const RegisterPage = () => {
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
     if (!fullName.trim()) {
       setError('Please enter your full name.');
       return;
     }
-    if (!email.trim()) {
-      setError('Please enter your email address.');
+    if (!email.trim() || !email.includes('@')) {
+      setError('Please enter a valid email address.');
       return;
     }
     if (!password || password.length < 6) {
-      setError('Password must be at least 6 characters.');
+      setError('Password must contain at least 6 characters.');
       return;
     }
     if (!agreeTerms) {
@@ -55,38 +57,50 @@ const RegisterPage = () => {
 
     setLoading(true);
     try {
-      const data = await registerWithBackend(email.trim(), password, selectedRole, fullName.trim());
+      const data = await registerWithBackend(
+        email.trim(),
+        password,
+        selectedRole,
+        fullName.trim(),
+        phone.trim(),
+        city.trim(),
+        stateName.trim()
+      );
 
       if (data?.access_token) {
+        setRegisteredSuccess(true);
         setToken(data.access_token);
         setUserType(selectedRole);
+        localStorage.setItem('token', data.access_token);
+        localStorage.setItem('userType', selectedRole);
 
         const me = await fetchCurrentUser(data.access_token);
-        if (me) {
-          setUser({ ...me, role: selectedRole, phone, city, state: stateName });
-        } else {
-          setUser({
-            id: data.user_id || 'user-' + Date.now(),
-            email: email.trim(),
-            full_name: fullName.trim(),
-            role: selectedRole,
-            phone,
-            city,
-            state: stateName,
-          });
-        }
+        const resolvedUser = me || {
+          id: data.user_id || 'user-' + Date.now(),
+          email: email.trim(),
+          full_name: fullName.trim(),
+          role: selectedRole,
+          phone,
+          city,
+          state: stateName,
+        };
 
-        // Navigate to appropriate role home
-        if (selectedRole === 'employer') {
-          navigate('/employer-dashboard');
-        } else if (selectedRole === 'technician') {
-          navigate('/services');
-        } else {
-          navigate('/jobs');
-        }
+        setUser(resolvedUser);
+        localStorage.setItem('sewaa_user', JSON.stringify(resolvedUser));
+
+        // Short timeout for visual feedback then immediate redirect into SEWAA
+        setTimeout(() => {
+          if (selectedRole === 'employer') {
+            navigate('/employer-dashboard');
+          } else if (selectedRole === 'technician') {
+            navigate('/services');
+          } else {
+            navigate('/jobs');
+          }
+        }, 600);
       }
     } catch (err) {
-      setError(err?.message || 'Registration failed. Please try again.');
+      setError(err?.message || 'Registration could not be completed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -135,7 +149,7 @@ const RegisterPage = () => {
             Step {step} of 2 – {step === 1 ? 'Select Role & Mobile' : 'Complete Profile'}
           </p>
 
-          {/* 4 Clear Role Selection Tabs */}
+          {/* 4 Role Selector Tabs */}
           <div className="auth-role-tabs">
             <button
               type="button"
@@ -172,7 +186,7 @@ const RegisterPage = () => {
           {step === 1 ? (
             <form onSubmit={handleNextStep} className="auth-form-body">
               <div className="form-group">
-                <label>Selected Account Type</label>
+                <label>Account Role</label>
                 <div className="role-explainer-box">
                   {selectedRole === 'worker' && '🛵 Find part-time jobs, daily wage gigs, and flexible delivery shifts.'}
                   {selectedRole === 'technician' && '🔧 Offer electrician, plumbing, AC repair, or appliance services.'}
@@ -182,7 +196,7 @@ const RegisterPage = () => {
               </div>
 
               <div className="form-group">
-                <label>Mobile Number (for SMS & Safety alerts) *</label>
+                <label>Mobile Number *</label>
                 <div className="phone-input-group">
                   <span className="phone-prefix">🇮🇳 +91</span>
                   <input
@@ -241,7 +255,7 @@ const RegisterPage = () => {
                 <label>Password (Min. 6 characters) *</label>
                 <input
                   type="password"
-                  placeholder="Create a strong password"
+                  placeholder="Create a secure password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -252,7 +266,7 @@ const RegisterPage = () => {
                 <label>Primary City / Town</label>
                 <input
                   type="text"
-                  placeholder="e.g. Chennai, Bengaluru, Mumbai"
+                  placeholder="e.g. Chennai, Madurai, Coimbatore"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
                 />
@@ -266,7 +280,7 @@ const RegisterPage = () => {
                   onChange={(e) => setAgreeTerms(e.target.checked)}
                 />
                 <label htmlFor="regTerms">
-                  I agree to SEWAA <Link to="/contact">Terms of Service</Link>, <Link to="/contact">Privacy Policy</Link>, and Consent to verified platform communication.
+                  I agree to SEWAA <Link to="/contact">Terms of Service</Link> and <Link to="/contact">Privacy Policy</Link>.
                 </label>
               </div>
 
@@ -275,15 +289,20 @@ const RegisterPage = () => {
                   type="button"
                   className="auth-back-btn"
                   onClick={() => setStep(1)}
+                  disabled={loading}
                 >
                   ← Back
                 </button>
                 <button
                   type="submit"
                   className="login-btn"
-                  disabled={loading}
+                  disabled={loading || registeredSuccess}
                 >
-                  {loading ? 'Creating Account...' : 'Finish & Join SEWAA'}
+                  {registeredSuccess
+                    ? 'Account Created ✓ Joining...'
+                    : loading
+                    ? 'Creating Account...'
+                    : 'Join SEWAA'}
                 </button>
               </div>
             </form>

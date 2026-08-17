@@ -2,39 +2,78 @@ import axios from 'axios';
 import { supabase } from './supabaseClient';
 
 // ============================================
-// API BASE URL
+// API BASE URL CONFIGURATION
 // ============================================
 
-const apiBase =
-  import.meta.env.VITE_API_BASE_URL ||
-  import.meta.env.VITE_API_URL ||
-  (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://127.0.0.1:8001/api'
-    : '/api');
-
-// ============================================
-// DIRECT BACKEND LOGIN (no Supabase JS needed)
-// ============================================
-
-export async function loginWithBackend(email, password, role = 'student') {
-  if (!apiBase) {
-    throw new Error('VITE_API_BASE_URL is not configured.');
+const getApiBase = () => {
+  if (import.meta.env.VITE_API_BASE_URL) return import.meta.env.VITE_API_BASE_URL;
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (typeof window !== 'undefined') {
+    // If in dev environment, prioritize /api which proxies via Vite, or direct 127.0.0.1:8001/api
+    return '/api';
   }
+  return 'http://127.0.0.1:8001/api';
+};
+
+const apiBase = getApiBase();
+
+// Create configured Axios instance for Auth with 10s timeout
+const authClient = axios.create({
+  baseURL: apiBase,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Helper to extract clean error message
+const parseAuthError = (err, defaultMsg = 'Authentication request failed.') => {
+  if (err?.response?.data?.detail) {
+    return err.response.data.detail;
+  }
+  if (err?.response?.data?.message) {
+    return err.response.data.message;
+  }
+  if (err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
+    return 'Connection timed out. Please check your internet connection and try again.';
+  }
+  if (err?.message === 'Network Error' || !err?.response) {
+    return 'We could not connect to SEWAA servers. Please check your internet connection and try again.';
+  }
+  return err?.message || defaultMsg;
+};
+
+// ============================================
+// DIRECT BACKEND LOGIN
+// ============================================
+
+export async function loginWithBackend(email, password, role = 'worker') {
   try {
-    const response = await axios.post(
-      `${apiBase}/auth/login`,
-      { email: email.trim(), password, role },
-      { withCredentials: true }
-    );
+    const response = await authClient.post('/auth/login', {
+      email: email.trim(),
+      password,
+      role,
+    });
     const data = response.data;
     if (!data?.access_token) {
-      throw new Error('No access token returned from backend.');
+      throw new Error('No access token returned from server.');
     }
     return data;
   } catch (err) {
-    if (err?.response?.data?.detail) throw new Error(err.response.data.detail);
-    if (err?.response?.data?.message) throw new Error(err.response.data.message);
-    throw err;
+    // If proxied /api failed with network error, attempt direct fallback to port 8001
+    if (err?.message === 'Network Error' && typeof window !== 'undefined') {
+      try {
+        const directResp = await axios.post(
+          'http://127.0.0.1:8001/api/auth/login',
+          { email: email.trim(), password, role },
+          { timeout: 8000 }
+        );
+        if (directResp.data?.access_token) return directResp.data;
+      } catch (fallbackErr) {
+        throw new Error(parseAuthError(fallbackErr, 'Login failed. Please check your credentials.'));
+      }
+    }
+    throw new Error(parseAuthError(err, 'Login failed. Please check your credentials.'));
   }
 }
 
@@ -42,21 +81,53 @@ export async function loginWithBackend(email, password, role = 'student') {
 // DIRECT BACKEND REGISTER
 // ============================================
 
-export async function registerWithBackend(email, password, role = 'student', fullName = '') {
-  if (!apiBase) {
-    throw new Error('VITE_API_BASE_URL is not configured.');
-  }
+export async function registerWithBackend(
+  email,
+  password,
+  role = 'worker',
+  fullName = '',
+  phone = '',
+  city = 'Chennai',
+  state = 'Tamil Nadu'
+) {
   try {
-    const response = await axios.post(
-      `${apiBase}/auth/register`,
-      { email: email.trim(), password, role, full_name: fullName },
-      { withCredentials: true }
-    );
-    return response.data;
+    const response = await authClient.post('/auth/register', {
+      email: email.trim(),
+      password,
+      role,
+      full_name: fullName.trim(),
+      phone: phone.trim(),
+      city: city.trim(),
+      state: state.trim(),
+    });
+    const data = response.data;
+    if (!data?.access_token) {
+      throw new Error('No access token returned from server.');
+    }
+    return data;
   } catch (err) {
-    if (err?.response?.data?.detail) throw new Error(err.response.data.detail);
-    if (err?.response?.data?.message) throw new Error(err.response.data.message);
-    throw err;
+    // If proxied /api failed with network error, attempt direct fallback to port 8001
+    if (err?.message === 'Network Error' && typeof window !== 'undefined') {
+      try {
+        const directResp = await axios.post(
+          'http://127.0.0.1:8001/api/auth/register',
+          {
+            email: email.trim(),
+            password,
+            role,
+            full_name: fullName.trim(),
+            phone: phone.trim(),
+            city: city.trim(),
+            state: state.trim(),
+          },
+          { timeout: 8000 }
+        );
+        if (directResp.data?.access_token) return directResp.data;
+      } catch (fallbackErr) {
+        throw new Error(parseAuthError(fallbackErr, 'Registration failed. Please try again.'));
+      }
+    }
+    throw new Error(parseAuthError(err, 'Registration failed. Please try again.'));
   }
 }
 
@@ -65,14 +136,22 @@ export async function registerWithBackend(email, password, role = 'student', ful
 // ============================================
 
 export async function fetchCurrentUser(token) {
-  if (!apiBase || !token) return null;
+  if (!token) return null;
   try {
-    const res = await axios.get(`${apiBase}/auth/me`, {
+    const res = await authClient.get('/auth/me', {
       headers: { Authorization: `Bearer ${token}` },
     });
     return res.data;
   } catch {
-    return null;
+    try {
+      const directRes = await axios.get('http://127.0.0.1:8001/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 5000,
+      });
+      return directRes.data;
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -120,15 +199,12 @@ export async function signUpWithEmail(email, password, userData = {}) {
 // ============================================
 
 export async function exchangeTokenWithBackend(accessToken) {
-  if (!apiBase) throw new Error('VITE_API_BASE_URL is not configured.');
   if (!accessToken) throw new Error('Supabase access token is missing.');
 
   try {
-    const response = await axios.post(
-      `${apiBase}/auth/supabase-login`,
-      { access_token: accessToken },
-      { withCredentials: true }
-    );
+    const response = await authClient.post('/auth/supabase-login', {
+      access_token: accessToken,
+    });
     const appToken = response.data?.access_token;
     if (!appToken) throw new Error('Backend did not return an application token.');
     const me = await fetchCurrentUser(appToken);
@@ -164,13 +240,12 @@ export async function logout() {
   try {
     if (supabase) await supabase.auth.signOut();
   } catch {}
-  if (apiBase) {
-    try {
-      await axios.post(`${apiBase}/auth/logout`, {}, { withCredentials: true });
-    } catch {}
-  }
+  try {
+    await authClient.post('/auth/logout');
+  } catch {}
   localStorage.removeItem('token');
   localStorage.removeItem('userType');
+  localStorage.removeItem('sewaa_user');
   sessionStorage.clear();
   window.location.href = '/login';
 }
@@ -180,8 +255,17 @@ export async function logout() {
 // ============================================
 
 export function onAuthStateChange(callback) {
-  if (!supabase) {
-    return { data: { subscription: { unsubscribe: () => {} } } };
-  }
-  return supabase.auth.onAuthStateChange(callback);
+  if (!supabase) return { data: { subscription: { unsubscribe: () => {} } } };
+  return supabase.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session?.access_token) {
+      try {
+        const data = await exchangeTokenWithBackend(session.access_token);
+        callback(event, data?.me);
+      } catch {
+        callback(event, null);
+      }
+    } else if (event === 'SIGNED_OUT') {
+      callback(event, null);
+    }
+  });
 }

@@ -1,13 +1,28 @@
-import { create } from 'zustand';
+const getStoredUser = () => {
+  try {
+    const raw = localStorage.getItem('sewaa_user');
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return null;
+};
 
 export const useAuthStore = create((set) => ({
-  user: null,
+  user: getStoredUser(),
   token: localStorage.getItem('token') || null,
   userType: localStorage.getItem('userType') || null,
   isLoading: false,
   error: null,
 
-  setUser: (user) => set({ user }),
+  setUser: (user) => {
+    if (user) {
+      try {
+        localStorage.setItem('sewaa_user', JSON.stringify(user));
+      } catch (e) {}
+    } else {
+      localStorage.removeItem('sewaa_user');
+    }
+    set({ user });
+  },
   setToken: (token) => {
     if (token) {
       localStorage.setItem('token', token);
@@ -34,10 +49,11 @@ export const useAuthStore = create((set) => ({
         (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
           ? 'http://127.0.0.1:8001/api'
           : '/api');
-      fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
+      fetch(`${apiBase}/auth/logout`, { method: 'POST' }).catch(() => {});
     } catch (e) {}
     localStorage.removeItem('token');
     localStorage.removeItem('userType');
+    localStorage.removeItem('sewaa_user');
     set({ user: null, token: null, userType: null });
   },
 }));
