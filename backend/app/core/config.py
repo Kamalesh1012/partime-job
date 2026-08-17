@@ -36,20 +36,23 @@ class Settings(BaseSettings):
 
     # App & Environment
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
-    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
-    AUTH_ENV: str = os.getenv("AUTH_ENV", "development")
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "production")
+    AUTH_ENV: str = os.getenv("AUTH_ENV", "production")
 
-    # SMS Provider Configuration
-    SMS_PROVIDER: str = os.getenv("SMS_PROVIDER", "local_dev")  # twilio, msg91, exotel, supabase, local_dev
-    SMS_API_KEY: str = os.getenv("SMS_API_KEY", "")
-    SMS_AUTH_TOKEN: str = os.getenv("SMS_AUTH_TOKEN", "")
-    SMS_ACCOUNT_SID: str = os.getenv("SMS_ACCOUNT_SID", "")
-    SMS_FROM_NUMBER: str = os.getenv("SMS_FROM_NUMBER", "")
-    SMS_SENDER_ID: str = os.getenv("SMS_SENDER_ID", "SEWAAI")
-    SMS_TEMPLATE_ID: str = os.getenv("SMS_TEMPLATE_ID", "")
+    # SMS / WhatsApp OTP Provider Configuration (MSG91 / Twilio / Exotel)
+    SMS_PROVIDER: str = os.getenv("SMS_PROVIDER", "msg91")  # msg91, twilio, exotel
+    MSG91_AUTH_KEY: str = os.getenv("MSG91_AUTH_KEY", os.getenv("SMS_API_KEY", ""))
+    MSG91_TEMPLATE_ID: str = os.getenv("MSG91_TEMPLATE_ID", os.getenv("SMS_TEMPLATE_ID", ""))
+    MSG91_SENDER_ID: str = os.getenv("MSG91_SENDER_ID", os.getenv("SMS_SENDER_ID", "SEWAAI"))
+    
+    # Twilio Configuration
+    TWILIO_ACCOUNT_SID: str = os.getenv("TWILIO_ACCOUNT_SID", os.getenv("SMS_ACCOUNT_SID", ""))
+    TWILIO_AUTH_TOKEN: str = os.getenv("TWILIO_AUTH_TOKEN", os.getenv("SMS_AUTH_TOKEN", ""))
+    TWILIO_FROM_NUMBER: str = os.getenv("TWILIO_FROM_NUMBER", os.getenv("SMS_FROM_NUMBER", ""))
+    TWILIO_VERIFY_SERVICE_SID: str = os.getenv("TWILIO_VERIFY_SERVICE_SID", "")
 
-    # Email Provider Configuration
-    EMAIL_PROVIDER: str = os.getenv("EMAIL_PROVIDER", "local_dev")  # resend, sendgrid, ses, smtp, local_dev
+    # Email Provider Configuration (Resend / SendGrid / SMTP)
+    EMAIL_PROVIDER: str = os.getenv("EMAIL_PROVIDER", "resend")
     EMAIL_API_KEY: str = os.getenv("EMAIL_API_KEY", "")
     EMAIL_FROM: str = os.getenv("EMAIL_FROM", "auth@sewaa.in")
     EMAIL_FROM_NAME: str = os.getenv("EMAIL_FROM_NAME", "SEWAA India")

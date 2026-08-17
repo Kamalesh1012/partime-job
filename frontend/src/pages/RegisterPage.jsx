@@ -111,7 +111,7 @@ const RegisterPage = () => {
       const res = await sendOtp(phone, 'mobile', 'registration');
       setCooldown(30);
       setSuccessMsg(res?.message || 'Verification code sent to your mobile.');
-      if (res?.dev_hint) setMobileOtp(res.dev_hint);
+      setMobileOtp(''); // Clear input so user enters the real SMS OTP
       setCurrentStep(3); // Go to OTP verification step
     } catch (err) {
       setError(err?.message || 'Failed to send OTP. Please try again.');
@@ -159,7 +159,7 @@ const RegisterPage = () => {
       setEmailStepMode('otp');
       setCooldown(30);
       setSuccessMsg(`Verification code sent to ${email}`);
-      if (res?.dev_hint) setEmailOtp(res.dev_hint);
+      setEmailOtp(''); // Clear input so user enters the real email OTP
     } catch (err) {
       setError(err?.message || 'Failed to send email verification code.');
     } finally {

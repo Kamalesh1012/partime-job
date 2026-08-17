@@ -46,9 +46,7 @@ const LoginPage = ({ setIsLoggedIn, setUserType }) => {
       setOtpSent(true);
       setCooldown(30);
       setSuccessMsg(res?.message || 'Verification OTP sent to your mobile.');
-      if (res?.dev_hint) {
-        setOtp(res.dev_hint);
-      }
+      setOtp(''); // User must enter real SMS OTP manually
     } catch (err) {
       setError(err?.message || 'Failed to send OTP. Please try again.');
     } finally {

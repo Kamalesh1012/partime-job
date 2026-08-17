@@ -50,53 +50,42 @@ export const parseAuthError = (err, defaultMsg = 'Authentication request failed.
 // OTP & VERIFICATION SERVICES
 // ============================================
 
-export async function sendOtp(phoneOrEmail, channel = 'mobile', purpose = 'registration') {
+export async function sendMobileOtp(phone, purpose = 'registration') {
   try {
-    const res = await authClient.post('/auth/otp/send', {
-      phone_or_email: phoneOrEmail,
-      channel,
-      purpose,
-    });
+    const res = await authClient.post('/auth/mobile/send-otp', { phone, purpose });
     return res.data;
   } catch (err) {
-    // Failover directly to 8001 if proxy failed
-    if (err?.message === 'Network Error' && typeof window !== 'undefined') {
-      try {
-        const directResp = await axios.post(
-          'http://127.0.0.1:8001/api/auth/otp/send',
-          { phone_or_email: phoneOrEmail, channel, purpose },
-          { timeout: 8000 }
-        );
-        return directResp.data;
-      } catch (fallbackErr) {
-        throw new Error(parseAuthError(fallbackErr, 'Failed to send verification code.'));
-      }
-    }
+    throw new Error(parseAuthError(err, 'Failed to send mobile OTP.'));
+  }
+}
+
+export async function verifyMobileOtp(phone, otp) {
+  try {
+    const res = await authClient.post('/auth/mobile/verify-otp', { phone, otp });
+    return res.data;
+  } catch (err) {
+    throw new Error(parseAuthError(err, 'Failed to verify mobile OTP.'));
+  }
+}
+
+export async function sendOtp(phoneOrEmail, channel = 'mobile', purpose = 'registration') {
+  try {
+    const endpoint = channel === 'mobile' ? '/auth/mobile/send-otp' : '/auth/email/send-otp';
+    const payload = channel === 'mobile' ? { phone: phoneOrEmail, purpose } : { email: phoneOrEmail, purpose };
+    const res = await authClient.post(endpoint, payload);
+    return res.data;
+  } catch (err) {
     throw new Error(parseAuthError(err, 'Failed to send verification code.'));
   }
 }
 
 export async function verifyOtp(phoneOrEmail, otp, channel = 'mobile') {
   try {
-    const res = await authClient.post('/auth/otp/verify', {
-      phone_or_email: phoneOrEmail,
-      otp,
-      channel,
-    });
+    const endpoint = channel === 'mobile' ? '/auth/mobile/verify-otp' : '/auth/email/verify-otp';
+    const payload = channel === 'mobile' ? { phone: phoneOrEmail, otp } : { email: phoneOrEmail, otp };
+    const res = await authClient.post(endpoint, payload);
     return res.data;
   } catch (err) {
-    if (err?.message === 'Network Error' && typeof window !== 'undefined') {
-      try {
-        const directResp = await axios.post(
-          'http://127.0.0.1:8001/api/auth/otp/verify',
-          { phone_or_email: phoneOrEmail, otp, channel },
-          { timeout: 8000 }
-        );
-        return directResp.data;
-      } catch (fallbackErr) {
-        throw new Error(parseAuthError(fallbackErr, 'OTP verification failed.'));
-      }
-    }
     throw new Error(parseAuthError(err, 'OTP verification failed.'));
   }
 }
