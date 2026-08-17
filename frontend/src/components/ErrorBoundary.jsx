@@ -1,10 +1,9 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error) {
@@ -13,10 +12,11 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error('SEWAA UI Error Boundary caught an error:', error, errorInfo);
+    this.setState({ errorInfo });
   }
 
   handleReset = () => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, errorInfo: null });
     window.location.href = '/';
   };
 
@@ -24,31 +24,47 @@ class ErrorBoundary extends React.Component {
     if (this.state.hasError) {
       return (
         <div style={{
-          minHeight: '80vh',
+          minHeight: '100vh',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '2rem',
+          padding: '1.5rem',
           textAlign: 'center',
           background: '#f8fafc',
-          fontFamily: 'system-ui, -apple-system, sans-serif'
+          fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
         }}>
           <div style={{
             background: '#ffffff',
             padding: '2.5rem 2rem',
             borderRadius: '1.25rem',
-            boxShadow: '0 10px 25px rgba(0,0,0,0.06)',
-            maxWidth: '480px',
-            width: '100%'
+            boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
+            maxWidth: '520px',
+            width: '100%',
+            border: '1px solid #e2e8f0'
           }}>
-            <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>🛡️</div>
-            <h2 style={{ color: '#0f172a', fontSize: '1.4rem', margin: '0 0 0.5rem' }}>
-              Something unexpected happened
+            <div style={{ fontSize: '3.5rem', marginBottom: '0.75rem' }}>🛡️</div>
+            <h2 style={{ color: '#0f172a', fontSize: '1.4rem', margin: '0 0 0.5rem', fontWeight: '800' }}>
+              SEWAA Application Recovery
             </h2>
-            <p style={{ color: '#64748b', fontSize: '0.95rem', margin: '0 0 1.5rem', lineHeight: '1.5' }}>
-              SEWAA recovered safely. You can return to the Home screen or reload your current location.
+            <p style={{ color: '#64748b', fontSize: '0.92rem', margin: '0 0 1.5rem', lineHeight: '1.5' }}>
+              Something unexpected happened while loading this screen. You can return to the Home screen or reload the app.
             </p>
+            {this.state.error && (
+              <div style={{
+                background: '#fef2f2',
+                color: '#991b1b',
+                padding: '0.75rem 1rem',
+                borderRadius: '0.5rem',
+                fontSize: '0.8rem',
+                textAlign: 'left',
+                marginBottom: '1.25rem',
+                overflowX: 'auto',
+                fontFamily: 'monospace'
+              }}>
+                {String(this.state.error?.message || this.state.error)}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
               <button
                 onClick={this.handleReset}
