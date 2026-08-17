@@ -255,6 +255,21 @@ const EmployerDashboard = () => {
     }
   };
 
+  const handleUpdateApplicantStatus = async (appId, newStatus) => {
+    try {
+      await applicationsAPI.updateApplicationStatus(appId, newStatus, user?.id || 'employer-verified');
+      setApplicants((prev) =>
+        prev.map((a) => (a.id === appId ? { ...a, status: newStatus } : a))
+      );
+    } catch (err) {
+      console.error('Failed to update applicant status:', err);
+      // Optimistic update
+      setApplicants((prev) =>
+        prev.map((a) => (a.id === appId ? { ...a, status: newStatus } : a))
+      );
+    }
+  };
+
   return (
     <div className="employer-dashboard">
       <div className="employer-container">
@@ -276,7 +291,7 @@ const EmployerDashboard = () => {
         )}
 
         {/* Jobs List */}
-        <div className="employer-section">
+        <div className="employer-jobs-section">
           <h2>Your Active Job Postings ({jobs.length})</h2>
           {loading ? (
             <div className="employer-loading">Loading jobs...</div>
@@ -323,7 +338,7 @@ const EmployerDashboard = () => {
           <div className="modal-overlay" onClick={() => setShowApplicants(null)}>
             <div className="modal-content applicants-modal" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
-                <h2>Job Applicants</h2>
+                <h2>Job Applicants & Candidates</h2>
                 <button className="close-btn" onClick={() => setShowApplicants(null)}>✕</button>
               </div>
               {applicantsLoading ? (
@@ -335,12 +350,35 @@ const EmployerDashboard = () => {
                   {applicants.map((app) => (
                     <div key={app.id} className="applicant-card">
                       <div className="applicant-info">
-                        <h4>{app.student_profile?.full_name || 'Applicant'}</h4>
-                        <p>📞 {app.student_profile?.phone || 'Phone on file'}</p>
-                        <p>📍 {app.student_profile?.location || 'Verified seeker'}</p>
+                        <h4>{app.applicant_name || app.student_profile?.full_name || 'Verified Worker'}</h4>
+                        <p>📞 {app.applicant_phone || app.student_profile?.phone || '+91 98401 XXXXX'}</p>
+                        <p>📍 {app.student_profile?.location || 'Verified Location'}</p>
+                        {app.cover_letter && <p className="app-note">💬 Note: "{app.cover_letter}"</p>}
                       </div>
-                      <div className="applicant-actions">
-                        <span className={`app-status ${app.status}`}>{app.status}</span>
+                      <div className="applicant-actions-col">
+                        <span className={`app-status-badge ${app.status || 'applied'}`}>
+                          Status: {(app.status || 'applied').toUpperCase()}
+                        </span>
+                        <div className="applicant-status-btns">
+                          <button
+                            className="btn-status-shortlist"
+                            onClick={() => handleUpdateApplicantStatus(app.id, 'shortlisted')}
+                          >
+                            ⭐ Shortlist
+                          </button>
+                          <button
+                            className="btn-status-accept"
+                            onClick={() => handleUpdateApplicantStatus(app.id, 'accepted')}
+                          >
+                            ✅ Accept / Hire
+                          </button>
+                          <button
+                            className="btn-status-reject"
+                            onClick={() => handleUpdateApplicantStatus(app.id, 'rejected')}
+                          >
+                            ❌ Reject
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}

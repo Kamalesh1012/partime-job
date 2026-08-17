@@ -1,127 +1,94 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store';
+import { loginWithBackend, fetchCurrentUser } from '../services/auth';
 import './LoginPage.css';
-import {
-  loginWithBackend,
-  signInWithGoogle,
-  handlePostSignIn,
-  fetchCurrentUser,
-} from '../services/auth';
 
-const LoginPage = () => {
+const LoginPage = ({ setIsLoggedIn, setUserType }) => {
   const navigate = useNavigate();
-  const setUser = useAuthStore((state) => state.setUser);
   const setToken = useAuthStore((state) => state.setToken);
-  const setUserType = useAuthStore((state) => state.setUserType);
+  const setUser = useAuthStore((state) => state.setUser);
+  const setStoreUserType = useAuthStore((state) => state.setUserType);
 
-  const [authMode, setAuthMode] = useState('otp'); // 'otp' | 'password'
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
+  const [selectedRole, setSelectedRole] = useState('worker'); // 'worker' | 'technician' | 'employer' | 'customer'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [selectedRole, setSelectedRole] = useState('worker'); // 'worker' | 'technician' | 'employer' | 'customer'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const checkExistingSession = async () => {
-      try {
-        const result = await handlePostSignIn();
-        if (result?.auth?.access_token) {
-          const appToken = result.auth.access_token;
-          setToken(appToken);
-          if (result.me) {
-            setUser(result.me);
-            setUserType(result.me.role || 'worker');
-            redirectByRole(result.me.role);
-          } else {
-            navigate('/');
-          }
-        }
-      } catch (err) {}
-    };
-    checkExistingSession();
-  }, []);
-
-  const redirectByRole = (role) => {
-    if (role === 'employer') navigate('/employer-dashboard');
-    else if (role === 'admin') navigate('/admin-dashboard');
-    else navigate('/');
-  };
-
-  // OTP Flow
-  const handleSendOTP = (e) => {
-    e.preventDefault();
-    if (!phone || phone.length < 10) {
-      setError('Please enter a valid 10-digit Indian mobile number.');
-      return;
-    }
-    setError('');
-    setOtpSent(true);
-  };
-
-  const handleVerifyOTP = (e) => {
-    e.preventDefault();
-    if (!otp || otp.length < 4) {
-      setError('Please enter the 4-6 digit OTP sent to your phone.');
-      return;
-    }
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      const fakeToken = `wm-auth-${Date.now()}`;
-      setToken(fakeToken);
-      const fakeUser = {
-        id: `user-${phone.slice(-6)}`,
-        phone: `+91 ${phone}`,
-        full_name: 'WorkMate Partner',
-        role: selectedRole,
-      };
-      setUser(fakeUser);
-      setUserType(selectedRole);
-      redirectByRole(selectedRole);
-    }, 800);
-  };
-
-  // Email + password login
-  const handleEmailLogin = async (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      if (!email.trim()) throw new Error('Please enter your email address.');
+      if (!email.trim()) throw new Error('Please enter your email.');
       if (!password) throw new Error('Please enter your password.');
 
-      const data = await loginWithBackend(email.trim(), password, selectedRole === 'customer' || selectedRole === 'technician' ? 'student' : selectedRole);
-      const appToken = data.access_token;
-      setToken(appToken);
+      const data = await loginWithBackend(email.trim(), password, selectedRole);
 
-      const me = await fetchCurrentUser(appToken);
-      if (me) {
-        setUser(me);
-        setUserType(me.role || data.role || selectedRole);
-        redirectByRole(me.role || data.role || selectedRole);
-      } else {
-        setUserType(data.role || selectedRole);
-        redirectByRole(data.role || selectedRole);
+      if (data?.access_token) {
+        setToken(data.access_token);
+        const resolvedRole = data.role || selectedRole;
+        setStoreUserType(resolvedRole);
+        if (setUserType) setUserType(resolvedRole);
+        if (setIsLoggedIn) setIsLoggedIn(true);
+
+        const me = await fetchCurrentUser(data.access_token);
+        if (me) {
+          setUser(me);
+        } else {
+          setUser({
+            id: data.user_id || 'user-' + Date.now(),
+            email: data.email || email.trim(),
+            role: resolvedRole,
+          });
+        }
+
+        if (resolvedRole === 'employer') {
+          navigate('/employer-dashboard');
+        } else if (resolvedRole === 'technician') {
+          navigate('/services');
+        } else {
+          navigate('/jobs');
+        }
       }
     } catch (err) {
-      setError(err?.message || 'Login failed. Please check your email and password.');
+      setError(err?.message || 'Login failed. Please verify your credentials.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleQuickDemoLogin = async (demoEmail, demoRole) => {
+    setEmail(demoEmail);
+    setPassword('password123');
+    setSelectedRole(demoRole);
     setError('');
     setLoading(true);
+
     try {
-      await signInWithGoogle();
+      const data = await loginWithBackend(demoEmail, 'password123', demoRole);
+      if (data?.access_token) {
+        setToken(data.access_token);
+        setStoreUserType(demoRole);
+        if (setUserType) setUserType(demoRole);
+        if (setIsLoggedIn) setIsLoggedIn(true);
+
+        const me = await fetchCurrentUser(data.access_token);
+        if (me) setUser(me);
+
+        if (demoRole === 'employer') {
+          navigate('/employer-dashboard');
+        } else if (demoRole === 'technician') {
+          navigate('/services');
+        } else {
+          navigate('/jobs');
+        }
+      }
     } catch (err) {
-      setError(err?.message || 'Google sign-in failed.');
+      setError(err?.message || 'Quick login failed.');
+    } finally {
       setLoading(false);
     }
   };
@@ -129,9 +96,9 @@ const LoginPage = () => {
   return (
     <div className="login-page">
       <div className="login-container">
-        {/* Left Side Branding */}
+        {/* Left Side Info */}
         <div className="login-info">
-          <div className="platform-tag-pill">Available Across India</div>
+          <div className="platform-tag-pill">SEWAA Portal</div>
           <div className="auth-logo-header">
             <img src="/sewaa-logo.png" alt="SEWAA Logo" className="auth-brand-logo" />
             <div>
@@ -139,38 +106,57 @@ const LoginPage = () => {
               <p className="auth-brand-sub">Part-Time Jobs & Local Services</p>
             </div>
           </div>
-          <p className="auth-brand-tagline">Find work. Find services. Connect locally.</p>
+          <p className="auth-brand-tagline">
+            Log in to manage shifts, track applications, book services, or hire verified local talent.
+          </p>
           <div className="login-features">
-            <div className="feature"><span className="icon">⚡</span><span>Instant local part-time work & events</span></div>
-            <div className="feature"><span className="icon">🔧</span><span>Trusted technicians & appliance repair</span></div>
-            <div className="feature"><span className="icon">🪪</span><span>Privacy-compliant identity verification</span></div>
-            <div className="feature"><span className="icon">💵</span><span>Daily & weekly payout options</span></div>
+            <div className="feature">
+              <span className="icon">⚡</span>
+              <span>Instant Job Applications & Shift Bookings</span>
+            </div>
+            <div className="feature">
+              <span className="icon">🛡️</span>
+              <span>24x7 Safety Assurance & GPS Live Tracking</span>
+            </div>
+            <div className="feature">
+              <span className="icon">📍</span>
+              <span>Hyperlocal Matching across all 786 Districts</span>
+            </div>
           </div>
         </div>
 
         {/* Right Side Form */}
         <div className="login-form-container">
-          {/* Role Tabs */}
+          <h2 style={{ marginBottom: '0.35rem', textAlign: 'center' }}>Welcome Back</h2>
+          <p style={{ textAlign: 'center', fontSize: '0.85rem', color: '#64748b', marginBottom: '1.25rem' }}>
+            Choose your account role to continue
+          </p>
+
+          {/* 4 Role Selector Tabs */}
           <div className="auth-role-tabs">
             <button
+              type="button"
               className={`role-tab ${selectedRole === 'worker' ? 'active' : ''}`}
               onClick={() => setSelectedRole('worker')}
             >
-              🛵 Worker / Gig
+              🛵 Worker
             </button>
             <button
+              type="button"
               className={`role-tab ${selectedRole === 'technician' ? 'active' : ''}`}
               onClick={() => setSelectedRole('technician')}
             >
               🔧 Technician
             </button>
             <button
+              type="button"
               className={`role-tab ${selectedRole === 'employer' ? 'active' : ''}`}
               onClick={() => setSelectedRole('employer')}
             >
               💼 Employer
             </button>
             <button
+              type="button"
               className={`role-tab ${selectedRole === 'customer' ? 'active' : ''}`}
               onClick={() => setSelectedRole('customer')}
             >
@@ -178,112 +164,74 @@ const LoginPage = () => {
             </button>
           </div>
 
-          {/* Mode Tabs: OTP vs Password */}
-          <div className="auth-mode-switch">
-            <button
-              className={`mode-btn ${authMode === 'otp' ? 'active' : ''}`}
-              onClick={() => setAuthMode('otp')}
-            >
-              📱 Mobile OTP Login
+          {error && <div className="login-error-box">⚠️ {error}</div>}
+
+          <form onSubmit={handleLoginSubmit} className="auth-form-body">
+            <div className="form-group">
+              <label>Email Address</label>
+              <input
+                type="email"
+                placeholder="name@example.com"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Password</label>
+              <input
+                type="password"
+                placeholder="Enter your password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+
+            <button type="submit" className="login-btn" disabled={loading}>
+              {loading ? 'Logging In...' : 'Log In to SEWAA →'}
             </button>
-            <button
-              className={`mode-btn ${authMode === 'password' ? 'active' : ''}`}
-              onClick={() => setAuthMode('password')}
-            >
-              🔑 Email / Password
-            </button>
-          </div>
 
-          {error && <div className="error-message">{error}</div>}
-
-          {authMode === 'otp' ? (
-            !otpSent ? (
-              <form onSubmit={handleSendOTP} className="login-form">
-                <div className="form-group">
-                  <label>Mobile Number (India +91)</label>
-                  <div className="phone-input-wrap">
-                    <span className="phone-prefix">+91</span>
-                    <input
-                      type="tel"
-                      maxLength="10"
-                      required
-                      placeholder="98401 23456"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                    />
-                  </div>
-                  <small className="form-helper-text">We verify your mobile number via OTP for trusted security.</small>
-                </div>
-                <button type="submit" className="btn btn-primary submit-btn">
-                  Send OTP Verification Code →
+            {/* Quick Demo Test Buttons */}
+            <div className="quick-demo-section">
+              <span className="demo-label">⚡ 1-Click Fast Login:</span>
+              <div className="quick-demo-chips">
+                <button
+                  type="button"
+                  className="demo-chip"
+                  onClick={() => handleQuickDemoLogin('worker@sewaa.in', 'worker')}
+                >
+                  🛵 Worker (Arun)
                 </button>
-              </form>
-            ) : (
-              <form onSubmit={handleVerifyOTP} className="login-form">
-                <div className="form-group">
-                  <label>Enter 6-Digit OTP sent to +91 {phone}</label>
-                  <input
-                    type="text"
-                    maxLength="6"
-                    required
-                    placeholder="e.g. 123456"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    autoFocus
-                  />
-                  <small className="form-helper-text">Test Demo: Any 6 digits (e.g. 123456) will verify instantly.</small>
-                </div>
-                <button type="submit" className="btn btn-primary submit-btn" disabled={loading}>
-                  {loading ? 'Verifying OTP...' : 'Verify & Sign In ✓'}
+                <button
+                  type="button"
+                  className="demo-chip"
+                  onClick={() => handleQuickDemoLogin('tech@sewaa.in', 'technician')}
+                >
+                  🔧 Tech (Murugan)
                 </button>
-                <button type="button" className="btn-text-resend" onClick={() => setOtpSent(false)}>
-                  ← Change Mobile Number
+                <button
+                  type="button"
+                  className="demo-chip"
+                  onClick={() => handleQuickDemoLogin('employer@sewaa.in', 'employer')}
+                >
+                  💼 Employer (Kavitha)
                 </button>
-              </form>
-            )
-          ) : (
-            <form onSubmit={handleEmailLogin} className="login-form">
-              <div className="form-group">
-                <label>Email Address</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="name@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
+                <button
+                  type="button"
+                  className="demo-chip"
+                  onClick={() => handleQuickDemoLogin('customer@sewaa.in', 'customer')}
+                >
+                  🏠 Customer (Deepa)
+                </button>
               </div>
-              <div className="form-group">
-                <label>Password</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              <button type="submit" className="btn btn-primary submit-btn" disabled={loading}>
-                {loading ? 'Signing in...' : 'Sign In with Password'}
-              </button>
-            </form>
-          )}
+            </div>
 
-          <div className="divider"><span>OR</span></div>
-
-          <button
-            type="button"
-            className="btn btn-google"
-            onClick={handleGoogleLogin}
-            disabled={loading}
-          >
-            <span className="google-icon">G</span>
-            <span>Continue with Google</span>
-          </button>
-
-          <p className="register-link">
-            New to WorkMate India? <Link to="/register">Create Free Account</Link>
-          </p>
+            <p className="auth-switch-prompt">
+              Don't have an account? <Link to="/register">Create Free Account</Link>
+            </p>
+          </form>
         </div>
       </div>
     </div>

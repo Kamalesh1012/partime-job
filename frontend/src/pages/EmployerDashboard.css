@@ -801,3 +801,116 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* Applicant Cards & Action Buttons */
+.applicant-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 0.85rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 0.85rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.dark .applicant-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.applicant-info h4 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.dark .applicant-info h4 {
+  color: #ffffff;
+}
+
+.applicant-info p {
+  margin: 0.15rem 0;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.app-note {
+  font-style: italic;
+  color: #2563eb !important;
+  margin-top: 0.35rem !important;
+}
+
+.applicant-actions-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.app-status-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.2rem 0.6rem;
+  border-radius: 0.35rem;
+  background: #eff6ff;
+  color: #2563eb;
+  letter-spacing: 0.05em;
+}
+
+.app-status-badge.accepted,
+.app-status-badge.hired {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.app-status-badge.rejected {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.app-status-badge.shortlisted {
+  background: #fefce8;
+  color: #ca8a04;
+}
+
+.applicant-status-btns {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.btn-status-shortlist {
+  background: #fefce8;
+  border: 1px solid #fef08a;
+  color: #a16207;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-status-accept {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-status-reject {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+

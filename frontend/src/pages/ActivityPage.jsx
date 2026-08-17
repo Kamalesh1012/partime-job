@@ -1,21 +1,24 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore, useSafetyStore } from '../store';
-import { activeJobsAPI, applicationsAPI, servicesAPI, safetyAPI } from '../services/api';
+import { activeJobsAPI, applicationsAPI, servicesAPI, safetyAPI, notificationsAPI } from '../services/api';
 import LiveTrackingMap from '../components/LiveTrackingMap';
 import './ActivityPage.css';
 
 export default function ActivityPage() {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { openSOSModal } = useSafetyStore();
 
-  const [activeTab, setActiveTab] = useState('active_jobs'); // 'active_jobs' | 'applications' | 'services' | 'incidents'
+  const [activeTab, setActiveTab] = useState('active_jobs'); // 'active_jobs' | 'applications' | 'services' | 'notifications' | 'incidents'
   const [activeJobs, setActiveJobs] = useState([]);
   const [applications, setApplications] = useState([]);
   const [serviceRequests, setServiceRequests] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Mock initial active job if list is empty for demo/live tracking experience
+  // Mock initial active job for demo/live tracking
   const defaultDemoActiveJob = {
     id: 'AJ-DEMO-2026',
     job_title: 'E-commerce Evening Delivery Shift',
@@ -33,13 +36,14 @@ export default function ActivityPage() {
 
   const fetchActivityData = async () => {
     setLoading(true);
-    const userId = user?.id || 'guest';
+    const userId = user?.id || 'demo-worker';
 
     try {
-      const [ajRes, appRes, srRes, incRes] = await Promise.allSettled([
+      const [ajRes, appRes, srRes, notifRes, incRes] = await Promise.allSettled([
         activeJobsAPI.getUserActiveJobs(userId),
         applicationsAPI.getStudentApplications(userId),
         servicesAPI.getCustomerRequests(userId),
+        notificationsAPI.getNotifications(userId),
         safetyAPI.getUserIncidents(userId),
       ]);
 
@@ -48,9 +52,10 @@ export default function ActivityPage() {
 
       if (appRes.status === 'fulfilled') setApplications(appRes.value.data?.data || []);
       if (srRes.status === 'fulfilled') setServiceRequests(srRes.value.data?.data || []);
+      if (notifRes.status === 'fulfilled') setNotifications(notifRes.value.data?.data || []);
       if (incRes.status === 'fulfilled') setIncidents(incRes.value.data?.data || []);
     } catch (e) {
-      console.error(e);
+      console.error('Error fetching activity data:', e);
     } finally {
       setLoading(false);
     }
@@ -68,11 +73,40 @@ export default function ActivityPage() {
         prev.map((j) => (j.id === jobId ? { ...j, current_status: nextStatus } : j))
       );
     } catch (e) {
-      // Local optimistic update
       setActiveJobs((prev) =>
         prev.map((j) => (j.id === jobId ? { ...j, current_status: nextStatus } : j))
       );
     }
+  };
+
+  const handleCancelServiceBooking = async (requestId) => {
+    if (!window.confirm('Are you sure you want to cancel this doorstep service request?')) return;
+    try {
+      await servicesAPI.updateRequestStatus(requestId, 'cancelled');
+      setServiceRequests((prev) =>
+        prev.map((sr) => (sr.id === requestId ? { ...sr, status: 'cancelled' } : sr))
+      );
+    } catch (e) {
+      setServiceRequests((prev) =>
+        prev.map((sr) => (sr.id === requestId ? { ...sr, status: 'cancelled' } : sr))
+      );
+    }
+  };
+
+  const handleMarkNotificationRead = async (notifId) => {
+    try {
+      await notificationsAPI.markAsRead(notifId);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notifId ? { ...n, is_read: true } : n))
+      );
+    } catch (e) {}
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    try {
+      await notificationsAPI.markAllAsRead(user?.id || 'demo-worker');
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    } catch (e) {}
   };
 
   const getStepProgressIndex = (status) => {
@@ -80,20 +114,28 @@ export default function ActivityPage() {
     return map[status] ?? 0;
   };
 
+  const unreadNotifsCount = notifications.filter((n) => !n.is_read).length;
+
   return (
     <div className="activity-page-container">
       <header className="activity-header">
-        <h1>Work & Service Activity</h1>
-        <p>Real-time active jobs tracking, safety management, job applications, and service requests.</p>
+        <h1>Activity & Engagement Hub</h1>
+        <p>Real-time active gig tracking, job application statuses, doorstep services, and notifications.</p>
       </header>
 
-      {/* Tabs */}
+      {/* Navigation Tabs Bar */}
       <div className="activity-tabs-bar">
         <button
           className={`act-tab-btn ${activeTab === 'active_jobs' ? 'active' : ''}`}
           onClick={() => setActiveTab('active_jobs')}
         >
-          ⚡ Live Active Jobs ({activeJobs.length})
+          ⚡ Live Gigs ({activeJobs.length})
+        </button>
+        <button
+          className={`act-tab-btn ${activeTab === 'applications' ? 'active' : ''}`}
+          onClick={() => setActiveTab('applications')}
+        >
+          📋 Applications ({applications.length})
         </button>
         <button
           className={`act-tab-btn ${activeTab === 'services' ? 'active' : ''}`}
@@ -102,10 +144,10 @@ export default function ActivityPage() {
           🔧 Service Bookings ({serviceRequests.length})
         </button>
         <button
-          className={`act-tab-btn ${activeTab === 'applications' ? 'active' : ''}`}
-          onClick={() => setActiveTab('applications')}
+          className={`act-tab-btn ${activeTab === 'notifications' ? 'active' : ''}`}
+          onClick={() => setActiveTab('notifications')}
         >
-          📋 Job Applications ({applications.length})
+          🔔 Notifications {unreadNotifsCount > 0 && <span className="tab-unread-pill">{unreadNotifsCount}</span>}
         </button>
         <button
           className={`act-tab-btn ${activeTab === 'incidents' ? 'active' : ''}`}
@@ -122,7 +164,7 @@ export default function ActivityPage() {
             <p>Loading your activity...</p>
           </div>
         ) : activeTab === 'active_jobs' ? (
-          /* Live Active Jobs with Safety Check */
+          /* TAB 1: Live Active Gigs */
           <div className="active-jobs-feed">
             {activeJobs.map((aj) => {
               const currentStep = getStepProgressIndex(aj.current_status);
@@ -197,61 +239,131 @@ export default function ActivityPage() {
               );
             })}
           </div>
-        ) : activeTab === 'services' ? (
-          /* Service Bookings */
-          <div className="services-activity-list">
-            {serviceRequests.length === 0 ? (
-              <div className="empty-act-box">
-                <span className="empty-icon">🔧</span>
-                <h4>No active technician service requests</h4>
-                <p>Book a certified electrician, plumber, or AC technician from the Services tab.</p>
-              </div>
-            ) : (
-              serviceRequests.map((sr) => (
-                <div key={sr.id} className="sr-item-card">
-                  <div className="sr-header">
-                    <h4>{sr.service_title}</h4>
-                    <span className={`status-pill ${sr.status}`}>{sr.status}</span>
-                  </div>
-                  <p className="sr-desc">Problem: {sr.problem_description}</p>
-                  <div className="sr-meta">
-                    <span>📅 {sr.preferred_date} ({sr.preferred_time_slot})</span>
-                    <span>📍 {sr.service_address}</span>
-                    <span>💵 ₹{sr.estimated_cost}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
         ) : activeTab === 'applications' ? (
-          /* Job Applications */
+          /* TAB 2: Job Applications */
           <div className="applications-activity-list">
             {applications.length === 0 ? (
               <div className="empty-act-box">
                 <span className="empty-icon">💼</span>
                 <h4>No job applications submitted yet</h4>
-                <p>Explore part-time and daily wage jobs from the Home or Jobs tab.</p>
+                <p>Explore part-time shifts and daily wage gigs near your area.</p>
+                <button className="act-cta-btn" onClick={() => navigate('/jobs')}>
+                  Find Part-Time Jobs →
+                </button>
               </div>
             ) : (
               applications.map((app) => (
                 <div key={app.id} className="app-item-card">
                   <div className="app-header">
-                    <h4>Application for Job #{app.job_id}</h4>
-                    <span className={`status-pill ${app.status}`}>{app.status}</span>
+                    <div>
+                      <h4>{app.job_title || `Job Application #${app.job_id}`}</h4>
+                      <p className="app-company">🏢 {app.company_name || 'SEWAA Employer'}</p>
+                    </div>
+                    <span className={`status-pill ${app.status || 'applied'}`}>
+                      {(app.status || 'applied').toUpperCase()}
+                    </span>
                   </div>
-                  <p className="app-date">Applied on: {new Date(app.applied_at).toLocaleDateString()}</p>
+                  <div className="app-meta-row">
+                    <span>📍 {app.location_display || 'Chennai'}</span>
+                    <span>💰 {app.salary_display || 'Daily Payout'}</span>
+                    <span>📅 Applied: {new Date(app.applied_at).toLocaleDateString()}</span>
+                  </div>
+                  {app.cover_letter && (
+                    <p className="app-cover-note">💬 Note: "{app.cover_letter}"</p>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        ) : activeTab === 'services' ? (
+          /* TAB 3: Service Bookings */
+          <div className="services-activity-list">
+            {serviceRequests.length === 0 ? (
+              <div className="empty-act-box">
+                <span className="empty-icon">🔧</span>
+                <h4>No doorstep technician bookings yet</h4>
+                <p>Book verified electricians, plumbers, AC mechanics, or cleaners in your city.</p>
+                <button className="act-cta-btn" onClick={() => navigate('/services')}>
+                  Explore Doorstep Services →
+                </button>
+              </div>
+            ) : (
+              serviceRequests.map((sr) => (
+                <div key={sr.id} className="sr-item-card">
+                  <div className="sr-header">
+                    <h4>{sr.service_title || 'Doorstep Service Booking'}</h4>
+                    <span className={`status-pill ${sr.status}`}>{sr.status.toUpperCase()}</span>
+                  </div>
+                  <p className="sr-desc"><strong>Problem / Request:</strong> {sr.problem_description}</p>
+                  <div className="sr-meta">
+                    <span>📅 Scheduled: {sr.preferred_date} ({sr.preferred_time_slot})</span>
+                    <span>📍 {sr.service_address}</span>
+                    <span>💵 ₹{sr.estimated_cost} Visiting Charge</span>
+                  </div>
+                  {sr.status !== 'cancelled' && sr.status !== 'completed' && (
+                    <div className="sr-actions-row">
+                      <button
+                        className="sr-cancel-btn"
+                        onClick={() => handleCancelServiceBooking(sr.id)}
+                      >
+                        Cancel Booking
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        ) : activeTab === 'notifications' ? (
+          /* TAB 4: Notifications Center */
+          <div className="notifications-activity-list">
+            <div className="notif-actions-header">
+              <span className="notif-total-text">
+                {notifications.length} Alerts ({unreadNotifsCount} unread)
+              </span>
+              {unreadNotifsCount > 0 && (
+                <button
+                  className="mark-all-read-btn"
+                  onClick={handleMarkAllNotificationsRead}
+                >
+                  ✓ Mark all as read
+                </button>
+              )}
+            </div>
+
+            {notifications.length === 0 ? (
+              <div className="empty-act-box">
+                <span className="empty-icon">🔔</span>
+                <h4>No notifications yet</h4>
+                <p>You'll receive instant alerts when employers review your applications or bookings are confirmed.</p>
+              </div>
+            ) : (
+              notifications.map((notif) => (
+                <div
+                  key={notif.id}
+                  className={`notif-card ${!notif.is_read ? 'unread' : ''}`}
+                  onClick={() => handleMarkNotificationRead(notif.id)}
+                >
+                  <div className="notif-card-header">
+                    <h4>{notif.title}</h4>
+                    <span className="notif-time">
+                      {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <p className="notif-message">{notif.message}</p>
+                  {!notif.is_read && <span className="unread-dot-badge">● New</span>}
                 </div>
               ))
             )}
           </div>
         ) : (
-          /* Safety Cases */
+          /* TAB 5: Safety Cases */
           <div className="incidents-activity-list">
             {incidents.length === 0 ? (
               <div className="empty-act-box">
                 <span className="empty-icon">🛡️</span>
                 <h4>All Clear: 0 Safety Incidents</h4>
-                <p>Your active shifts are monitored under 24x7 WorkMate safety protection.</p>
+                <p>Your active shifts are protected under 24x7 SEWAA emergency monitoring.</p>
               </div>
             ) : (
               incidents.map((inc) => (

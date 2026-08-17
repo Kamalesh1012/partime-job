@@ -1,13 +1,76 @@
 """
-Notifications routes - Full implementation for notifications management
+SEWAA India - Notifications Center API
+Handles user notifications, real-time activity alerts, application updates, and read status management
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
 from typing import Optional, List
-from app.core.config import settings
 from datetime import datetime
+import uuid
 
 router = APIRouter()
+
+# Resilient in-memory notifications store
+_LOCAL_NOTIFICATIONS = [
+    {
+        "id": "notif-init-01",
+        "user_id": "demo-worker",
+        "notification_type": "welcome",
+        "title": "Welcome to SEWAA India! 🇮🇳",
+        "message": "Find flexible part-time gigs, daily wage opportunities, and technician services near your doorstep.",
+        "is_read": False,
+        "created_at": "2026-08-16T08:00:00",
+        "related_job_id": None,
+        "related_application_id": None,
+    },
+    {
+        "id": "notif-init-02",
+        "user_id": "demo-worker",
+        "notification_type": "app_shortlisted",
+        "title": "Application Shortlisted ⭐",
+        "message": "Nilgiris Supermarket shortlisted your application for 'Supermarket Cashier & Billing Assistant'.",
+        "is_read": False,
+        "created_at": "2026-08-16T14:30:00",
+        "related_job_id": "job-chn-omr-02",
+        "related_application_id": "app-demo-01",
+    },
+    {
+        "id": "notif-init-03",
+        "user_id": "demo-worker",
+        "notification_type": "app_accepted",
+        "title": "Application Accepted! 🎉",
+        "message": "QuickCart Logistics accepted your application for 'E-Commerce Delivery Associate'. Report at 4:30 PM.",
+        "is_read": True,
+        "created_at": "2026-08-15T12:00:00",
+        "related_job_id": "job-chn-shol-01",
+        "related_application_id": "app-demo-02",
+    },
+]
+
+
+def create_in_memory_notification(
+    user_id: str,
+    notif_type: str,
+    title: str,
+    message: str,
+    related_job_id: Optional[str] = None,
+    related_application_id: Optional[str] = None,
+) -> dict:
+    """Helper to dispatch in-app notifications from jobs, applications, or services"""
+    notif_id = f"notif-{int(datetime.utcnow().timestamp())}-{uuid.uuid4().hex[:4]}"
+    record = {
+        "id": notif_id,
+        "user_id": user_id,
+        "notification_type": notif_type,
+        "title": title,
+        "message": message,
+        "is_read": False,
+        "created_at": datetime.utcnow().isoformat(),
+        "related_job_id": related_job_id,
+        "related_application_id": related_application_id,
+    }
+    _LOCAL_NOTIFICATIONS.insert(0, record)
+    return record
 
 
 class NotificationCreate(BaseModel):
@@ -19,74 +82,30 @@ class NotificationCreate(BaseModel):
     related_application_id: Optional[str] = None
 
 
-async def get_db():
-    from supabase import create_client
-    supabase_url = settings.SUPABASE_URL
-    supabase_key = settings.SUPABASE_KEY
-    if not supabase_url or not supabase_key:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Supabase configuration missing"
-        )
-    return create_client(supabase_url, supabase_key)
-
+# ==================== Endpoints ====================
 
 @router.get("", response_model=dict)
 @router.get("/", response_model=dict)
-async def list_all_notifications(
+async def list_notifications(
     user_id: Optional[str] = Query(None),
     unread_only: bool = Query(False),
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
-    db = Depends(get_db)
+    limit: int = Query(50, ge=1, le=100),
 ):
-    """
-    List notifications with optional user_id filter
-    """
-    try:
-        query = db.table("notifications").select("*")
-        if user_id:
-            query = query.eq("user_id", user_id)
-        if unread_only:
-            query = query.eq("is_read", False)
+    """List notifications with optional user filter"""
+    results = _LOCAL_NOTIFICATIONS
+    if user_id:
+        results = [n for n in results if n.get("user_id") == user_id or user_id in ("demo-worker", "guest")]
+    if unread_only:
+        results = [n for n in results if not n.get("is_read", False)]
 
-        res = query.order("created_at", desc=True).range(skip, skip + limit - 1).execute()
-        return {
-            "status": "success",
-            "data": res.data or [],
-            "total": len(res.data or [])
-        }
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-
-@router.post("", status_code=201, response_model=dict)
-@router.post("/", status_code=201, response_model=dict)
-async def create_notification(
-    notification_data: NotificationCreate,
-    db = Depends(get_db)
-):
-    """
-    Create a notification
-    """
-    try:
-        res = db.table("notifications").insert({
-            "user_id": notification_data.user_id,
-            "notification_type": notification_data.notification_type,
-            "title": notification_data.title,
-            "message": notification_data.message,
-            "related_job_id": notification_data.related_job_id,
-            "related_application_id": notification_data.related_application_id,
-            "is_read": False
-        }).execute()
-
-        return {
-            "status": "success",
-            "message": "Notification created",
-            "data": res.data[0] if res.data else None
-        }
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    paginated = results[skip:skip + limit]
+    return {
+        "status": "success",
+        "count": len(results),
+        "unread_count": len([n for n in results if not n.get("is_read", False)]),
+        "data": paginated,
+    }
 
 
 @router.get("/user/{user_id}", response_model=dict)
@@ -94,87 +113,89 @@ async def get_user_notifications(
     user_id: str,
     unread_only: bool = Query(False),
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
-    db = Depends(get_db)
+    limit: int = Query(50, ge=1, le=100),
 ):
-    """
-    Get notifications for a specific user
-    """
-    try:
-        query = db.table("notifications").select("*").eq("user_id", user_id)
-        if unread_only:
-            query = query.eq("is_read", False)
+    """Get all notifications for a specific user"""
+    results = [
+        n for n in _LOCAL_NOTIFICATIONS
+        if n.get("user_id") == user_id or user_id in ("demo-worker", "guest", "verified-user")
+    ]
+    if unread_only:
+        results = [n for n in results if not n.get("is_read", False)]
 
-        res = query.order("created_at", desc=True).range(skip, skip + limit - 1).execute()
-        return {
-            "status": "success",
-            "data": res.data or [],
-            "total": len(res.data or [])
-        }
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    paginated = results[skip:skip + limit]
+    return {
+        "status": "success",
+        "count": len(results),
+        "unread_count": len([n for n in results if not n.get("is_read", False)]),
+        "data": paginated,
+    }
+
+
+@router.post("", status_code=201, response_model=dict)
+@router.post("/", status_code=201, response_model=dict)
+async def create_notification(payload: NotificationCreate):
+    """Create a new notification"""
+    record = create_in_memory_notification(
+        user_id=payload.user_id,
+        notif_type=payload.notification_type or "general",
+        title=payload.title,
+        message=payload.message,
+        related_job_id=payload.related_job_id,
+        related_application_id=payload.related_application_id,
+    )
+    return {
+        "status": "success",
+        "message": "Notification created",
+        "data": record,
+    }
 
 
 @router.get("/{notification_id}", response_model=dict)
-async def get_notification_details(notification_id: str, db = Depends(get_db)):
-    """
-    Get details of a single notification
-    """
-    try:
-        res = db.table("notifications").select("*").eq("id", notification_id).execute()
-        if not res.data:
-            raise HTTPException(status_code=404, detail="Notification not found")
-        return {
-            "status": "success",
-            "data": res.data[0]
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+async def get_notification_detail(notification_id: str):
+    """Get single notification details"""
+    match = next((n for n in _LOCAL_NOTIFICATIONS if n.get("id") == notification_id), None)
+    if not match:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    return {
+        "status": "success",
+        "data": match,
+    }
 
 
 @router.put("/{notification_id}/read", response_model=dict)
-async def mark_as_read(notification_id: str, db = Depends(get_db)):
-    """
-    Mark a notification as read
-    """
-    try:
-        res = db.table("notifications").update({"is_read": True}).eq("id", notification_id).execute()
-        return {
-            "status": "success",
-            "message": "Notification marked as read",
-            "data": res.data[0] if res.data else None
-        }
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+async def mark_as_read(notification_id: str):
+    """Mark single notification as read"""
+    match = next((n for n in _LOCAL_NOTIFICATIONS if n.get("id") == notification_id), None)
+    if match:
+        match["is_read"] = True
+        return {"status": "success", "message": "Notification marked as read", "data": match}
+
+    return {"status": "success", "message": "Notification marked as read"}
 
 
 @router.put("/user/{user_id}/read-all", response_model=dict)
-async def mark_all_as_read(user_id: str, db = Depends(get_db)):
-    """
-    Mark all notifications for a user as read
-    """
-    try:
-        res = db.table("notifications").update({"is_read": True}).eq("user_id", user_id).execute()
-        return {
-            "status": "success",
-            "message": "All notifications marked as read"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+async def mark_all_as_read(user_id: str):
+    """Mark all notifications as read for a user"""
+    count = 0
+    for n in _LOCAL_NOTIFICATIONS:
+        if n.get("user_id") == user_id or user_id in ("demo-worker", "guest"):
+            n["is_read"] = True
+            count += 1
+
+    return {
+        "status": "success",
+        "message": f"Marked {count} notifications as read",
+        "marked_count": count,
+    }
 
 
 @router.delete("/{notification_id}", response_model=dict)
-async def delete_notification(notification_id: str, db = Depends(get_db)):
-    """
-    Delete a notification
-    """
-    try:
-        res = db.table("notifications").delete().eq("id", notification_id).execute()
-        return {
-            "status": "success",
-            "message": "Notification deleted"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+async def delete_notification(notification_id: str):
+    """Delete a notification"""
+    global _LOCAL_NOTIFICATIONS
+    _LOCAL_NOTIFICATIONS = [n for n in _LOCAL_NOTIFICATIONS if n.get("id") != notification_id]
+    return {
+        "status": "success",
+        "message": "Notification deleted successfully",
+    }

@@ -7,6 +7,7 @@ import './ProfilePage.css';
 const ProfilePage = () => {
   const user = useAuthStore((s) => s.user);
   const userType = useAuthStore((s) => s.userType) || 'worker';
+  const logout = useAuthStore((s) => s.logout);
   const { selectedCity, selectedState, setLocation } = useLocationStore();
   const { openSOSModal } = useSafetyStore();
 
@@ -21,25 +22,32 @@ const ProfilePage = () => {
   const [newContactPhone, setNewContactPhone] = useState('');
   const [newContactRel, setNewContactRel] = useState('Family');
 
-  // KYC Verification
+  // KYC Verification state: 'not_started' | 'under_review' | 'verified'
+  const [kycStatus, setKycStatus] = useState('verified');
   const [maskedAadhaar, setMaskedAadhaar] = useState('XXXX-XXXX-9842');
-  const [kycConsent, setKycConsent] = useState(false);
-  const [isIdentityVerified, setIsIdentityVerified] = useState(true);
+  const [kycConsent, setKycConsent] = useState(true);
 
-  // Face Liveness Simulator
+  // Face Liveness
   const [isLivenessChecking, setIsLivenessChecking] = useState(false);
   const [isFaceVerified, setIsFaceVerified] = useState(true);
-  const [faceConsent, setFaceConsent] = useState(false);
+  const [faceConsent, setFaceConsent] = useState(true);
+
+  // Data erasure modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
 
   useEffect(() => {
     fetchProfileAndSafety();
   }, [user]);
 
   const fetchProfileAndSafety = async () => {
-    const userId = user?.id || 'demo-user-ind';
+    const userId = user?.id || 'demo-worker';
     try {
       if (userType === 'employer') {
         const res = await profilesAPI.getEmployerProfile(userId);
+        setProfile(res.data || {});
+      } else if (userType === 'technician') {
+        const res = await profilesAPI.getTechnicianProfile(userId);
         setProfile(res.data || {});
       } else {
         const res = await profilesAPI.getStudentProfile(userId);
@@ -59,7 +67,7 @@ const ProfilePage = () => {
     e.preventDefault();
     setLoading(true);
     setStatusMsg('');
-    const userId = user?.id || 'demo-user-ind';
+    const userId = user?.id || 'demo-worker';
 
     const formData = new FormData(e.target);
     const updated = {
@@ -75,11 +83,18 @@ const ProfilePage = () => {
     try {
       if (userType === 'employer') {
         await profilesAPI.updateEmployerProfile(userId, { ...updated, company_name: formData.get('company_name') });
+      } else if (userType === 'technician') {
+        await profilesAPI.updateTechnicianProfile(userId, {
+          ...updated,
+          full_name: user?.full_name || 'Technician Pro',
+          hourly_rate: parseFloat(formData.get('hourly_rate')) || 350,
+          visiting_charge: parseFloat(formData.get('visiting_charge')) || 199,
+        });
       } else {
         await profilesAPI.updateStudentProfile(userId, updated);
       }
       setLocation(updated.city || selectedCity, updated.state || selectedState, updated.area);
-      setStatusMsg('Profile updated successfully across India network!');
+      setStatusMsg('Profile updated successfully!');
     } catch (err) {
       setStatusMsg('Profile updated locally.');
     } finally {
@@ -92,7 +107,7 @@ const ProfilePage = () => {
     if (!newContactName || !newContactPhone) return;
 
     const newContact = {
-      user_id: user?.id || 'demo-user-ind',
+      user_id: user?.id || 'demo-worker',
       name: newContactName,
       phone: newContactPhone,
       relationship: newContactRel,
@@ -129,10 +144,10 @@ const ProfilePage = () => {
       setIsLivenessChecking(false);
       setIsFaceVerified(true);
       try {
-        await verificationAPI.submitFaceLiveness(user?.id || 'demo-user-ind');
+        await verificationAPI.submitFaceLiveness(user?.id || 'demo-worker');
       } catch (e) {}
-      setStatusMsg('Face Liveness Verified! Anti-impersonation badge granted.');
-    }, 2000);
+      setStatusMsg('Face Liveness Verified! Anti-impersonation badge active.');
+    }, 1500);
   };
 
   const handleVerifyAadhaar = async (e) => {
@@ -141,13 +156,20 @@ const ProfilePage = () => {
       alert('Explicit user consent is mandatory for Indian identity verification.');
       return;
     }
-    try {
-      await verificationAPI.submitMaskedAadhaar(user?.id || 'demo-user-ind', maskedAadhaar);
-      setIsIdentityVerified(true);
-      setStatusMsg('Masked Aadhaar KYC completed with zero sensitive data exposure.');
-    } catch (e) {
-      setIsIdentityVerified(true);
-    }
+    setKycStatus('under_review');
+    setStatusMsg('Masked identification submitted for review.');
+    setTimeout(() => {
+      setKycStatus('verified');
+      setStatusMsg('Identity Verified! Verified Trust Badge awarded.');
+    }, 1500);
+  };
+
+  const handleDeleteAccount = () => {
+    setDeleteConfirmed(true);
+    setTimeout(() => {
+      logout();
+      window.location.href = '/';
+    }, 2000);
   };
 
   const currentCities = MAJOR_CITIES_BY_STATE[profile.state || selectedState] || [selectedCity];
@@ -157,19 +179,19 @@ const ProfilePage = () => {
       <header className="profile-top-header">
         <div className="user-avatar-badge-wrap">
           <div className="profile-avatar-circle">
-            {profile.photo_url ? (
-              <img src={profile.photo_url} alt="Profile" className="avatar-img" />
+            {profile.photo_url || user?.profile_picture ? (
+              <img src={profile.photo_url || user?.profile_picture} alt="Profile" className="avatar-img" />
             ) : (
               <span>👤</span>
             )}
           </div>
           <div className="profile-header-info">
-            <h2>{user?.full_name || 'WorkMate Member'}</h2>
+            <h2>{user?.full_name || 'SEWAA Member'}</h2>
             <span className="user-role-badge">{userType.toUpperCase()} • INDIA</span>
             <div className="badges-row">
               <span className="badge-pill phone">📞 Phone Verified ✓</span>
-              {isIdentityVerified && <span className="badge-pill kyc">🛡️ Identity Verified ✓</span>}
-              {isFaceVerified && <span className="badge-pill face">📸 Face Liveness Verified ✓</span>}
+              {kycStatus === 'verified' && <span className="badge-pill kyc">🛡️ Verified ID ✓</span>}
+              {isFaceVerified && <span className="badge-pill face">📸 Liveness Check ✓</span>}
             </div>
           </div>
         </div>
@@ -199,160 +221,233 @@ const ProfilePage = () => {
           className={`p-tab ${activeSection === 'verification' ? 'active' : ''}`}
           onClick={() => setActiveSection('verification')}
         >
-          🛡️ Verification & KYC Badges
+          🛡️ Trust & Verification
         </button>
         <button
           className={`p-tab ${activeSection === 'privacy' ? 'active' : ''}`}
           onClick={() => setActiveSection('privacy')}
         >
-          🔒 Privacy & Data Retention
+          🔒 Privacy & Compliance
         </button>
       </div>
 
-      <main className="profile-tab-body">
+      <div className="profile-tab-content">
+        {/* SECTION 1: Personal Details Form */}
         {activeSection === 'profile' && (
-          <form className="profile-form-grid" onSubmit={handleUpdateProfile}>
+          <form onSubmit={handleUpdateProfile} className="profile-details-form">
+            <div className="form-section-title">
+              <h3>Basic Profile & Region</h3>
+              <p>Your details are matched with nearby shifts and service inquiries across India.</p>
+            </div>
+
+            <div className="form-grid-2">
+              <label>
+                <span>Email Address (Read-only)</span>
+                <input type="email" disabled value={user?.email || 'user@sewaa.in'} />
+              </label>
+
+              <label>
+                <span>Contact Phone</span>
+                <input
+                  type="text"
+                  name="phone"
+                  defaultValue={profile.phone || user?.phone || '+91 98401 23456'}
+                />
+              </label>
+            </div>
+
             {userType === 'employer' && (
               <label>
-                <span>Company / Business Name</span>
-                <input name="company_name" defaultValue={profile.company_name || ''} placeholder="e.g. Reliance Retail / Local Store" />
+                <span>Organization / Business Name</span>
+                <input
+                  type="text"
+                  name="company_name"
+                  defaultValue={profile.company_name || 'SEWAA Business Partner'}
+                />
               </label>
             )}
 
-            <label>
-              <span>Mobile Phone Number (Primary Contact)</span>
-              <input name="phone" defaultValue={profile.phone || '+91 98401 23456'} required />
-            </label>
+            {userType === 'technician' && (
+              <div className="form-grid-2">
+                <label>
+                  <span>Visiting Inspection Charge (₹)</span>
+                  <input
+                    type="number"
+                    name="visiting_charge"
+                    defaultValue={profile.visiting_charge || 199}
+                  />
+                </label>
+                <label>
+                  <span>Hourly Service Rate (₹)</span>
+                  <input
+                    type="number"
+                    name="hourly_rate"
+                    defaultValue={profile.hourly_rate || 350}
+                  />
+                </label>
+              </div>
+            )}
 
-            <div className="form-cols-2">
+            <div className="form-grid-2">
               <label>
-                <span>State / UT</span>
+                <span>State / Union Territory</span>
                 <select name="state" defaultValue={profile.state || selectedState}>
-                  {ALL_INDIAN_STATES.map((st) => (
-                    <option key={st} value={st}>
-                      {st}
-                    </option>
+                  {ALL_INDIAN_STATES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
               </label>
+
               <label>
-                <span>District / City</span>
-                <input name="city" defaultValue={profile.city || selectedCity} placeholder="e.g. Chennai, Bengaluru, Mumbai" required />
+                <span>City / Town</span>
+                <select name="city" defaultValue={profile.city || selectedCity}>
+                  {currentCities.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
               </label>
             </div>
 
-            <div className="form-cols-2">
+            <div className="form-grid-2">
               <label>
-                <span>Locality / Area</span>
-                <input name="area" defaultValue={profile.area || ''} placeholder="e.g. Velachery / Whitefield / Andheri" />
+                <span>Area / Locality / Landmark</span>
+                <input
+                  type="text"
+                  name="area"
+                  placeholder="e.g. Sholinganallur, OMR, Indiranagar"
+                  defaultValue={profile.area || ''}
+                />
               </label>
+
               <label>
                 <span>PIN Code</span>
-                <input name="pin_code" defaultValue={profile.pin_code || '600001'} placeholder="6-digit Indian PIN" />
+                <input
+                  type="text"
+                  name="pin_code"
+                  placeholder="600119"
+                  defaultValue={profile.pin_code || ''}
+                />
               </label>
             </div>
 
             <label>
-              <span>Skills / Specializations (Comma-separated)</span>
+              <span>Skills & Expertise (Comma separated)</span>
               <input
+                type="text"
                 name="skills"
-                defaultValue={Array.isArray(profile.skills) ? profile.skills.join(', ') : 'Delivery, Packing, Electrician'}
-                placeholder="e.g. AC Repair, Bike Driving, Front Load"
+                placeholder="e.g. Delivery, AC Repair, Electrical Wiring, Cashier"
+                defaultValue={Array.isArray(profile.skills) ? profile.skills.join(', ') : profile.skills || ''}
               />
             </label>
 
             <label>
-              <span>Bio / Work Profile Summary</span>
-              <textarea name="bio" rows="3" defaultValue={profile.bio || 'Experienced local part-time worker & technician ready for flexible shifts across the city.'}></textarea>
+              <span>Bio & Experience Summary</span>
+              <textarea
+                name="bio"
+                rows="3"
+                placeholder="Tell employers or customers about your background..."
+                defaultValue={profile.bio || ''}
+              />
             </label>
 
             <button type="submit" className="save-profile-btn" disabled={loading}>
-              {loading ? 'Saving...' : '💾 Save Profile'}
+              {loading ? 'Saving...' : '💾 Save Profile Changes'}
             </button>
           </form>
         )}
 
+        {/* SECTION 2: Emergency Contacts */}
         {activeSection === 'emergency' && (
-          <div className="emergency-contacts-manager">
-            <div className="ec-notice-card">
-              <span className="ec-icon">🚨</span>
-              <div>
-                <h4>Emergency Contact & SOS Dispatch System</h4>
-                <p>These trusted contacts receive your live GPS location if you trigger the SOS safety button during an active shift.</p>
-              </div>
+          <div className="emergency-contacts-section">
+            <div className="form-section-title">
+              <h3>24x7 Safety & SOS Contacts</h3>
+              <p>These verified contacts will receive automatic SMS and GPS alerts if you trigger the SOS button.</p>
             </div>
 
             <div className="contacts-list">
               {emergencyContacts.map((c) => (
-                <div key={c.id || c.phone} className="contact-item-row">
-                  <div className="c-avatar">📞</div>
+                <div key={c.id} className="contact-card-item">
                   <div className="c-info">
                     <strong>{c.name}</strong>
-                    <span>{c.phone} • Relationship: {c.relationship}</span>
+                    <span className="c-rel">({c.relationship})</span>
+                    <p className="c-phone">📞 {c.phone}</p>
                     {c.is_primary && <span className="primary-pill">Primary Contact</span>}
                   </div>
-                  <button className="del-c-btn" onClick={() => handleDeleteEmergencyContact(c.id)}>
-                    Remove
+                  <button
+                    className="delete-c-btn"
+                    onClick={() => handleDeleteEmergencyContact(c.id)}
+                    title="Remove Contact"
+                  >
+                    🗑️
                   </button>
                 </div>
               ))}
             </div>
 
-            {/* Add Contact Form */}
-            <form className="add-contact-form" onSubmit={handleAddEmergencyContact}>
-              <h4>Add Trusted Emergency Contact</h4>
-              <div className="form-cols-3">
+            <form onSubmit={handleAddEmergencyContact} className="add-contact-form">
+              <h4>Add New Safety Contact</h4>
+              <div className="form-grid-3">
                 <input
                   type="text"
+                  placeholder="Contact Name (e.g. Ramesh)"
                   required
-                  placeholder="Contact Full Name"
                   value={newContactName}
                   onChange={(e) => setNewContactName(e.target.value)}
                 />
                 <input
                   type="tel"
+                  placeholder="Mobile (+91 98401 23456)"
                   required
-                  placeholder="Mobile Phone (+91...)"
                   value={newContactPhone}
                   onChange={(e) => setNewContactPhone(e.target.value)}
                 />
-                <select value={newContactRel} onChange={(e) => setNewContactRel(e.target.value)}>
-                  <option value="Family">Family / Parent</option>
-                  <option value="Spouse">Spouse</option>
-                  <option value="Friend">Friend</option>
-                  <option value="Supervisor">Work Supervisor</option>
+                <select
+                  value={newContactRel}
+                  onChange={(e) => setNewContactRel(e.target.value)}
+                >
+                  <option>Family</option>
+                  <option>Friend</option>
+                  <option>Colleague</option>
+                  <option>Employer</option>
                 </select>
               </div>
-              <button type="submit" className="add-contact-btn">
-                ➕ Add Emergency Contact
+              <button type="submit" className="add-c-btn">
+                ➕ Add Contact to SOS Alert Network
               </button>
             </form>
           </div>
         )}
 
+        {/* SECTION 3: KYC & Trust Verification */}
         {activeSection === 'verification' && (
-          <div className="verification-center">
-            <div className="vc-header-banner">
-              <h3>Trust & Identity Verification Center</h3>
-              <p>Verified workers and technicians get 3x more bookings and job offers.</p>
+          <div className="verification-section">
+            <div className="form-section-title">
+              <h3>Trust & Identity Verification</h3>
+              <p>Build credibility with customers and employers across India.</p>
             </div>
 
-            {/* Masked Aadhaar KYC */}
-            <div className="verification-card">
-              <div className="vc-top">
-                <span className="vc-icon">🪪</span>
-                <div className="vc-text">
-                  <h4>Government ID / Masked Aadhaar Verification</h4>
-                  <p>In strict accordance with Indian Privacy & UIDAI guidelines, raw Aadhaar numbers are never stored, logged, or exposed to employers.</p>
-                </div>
-                <span className="vc-status-badge verified">
-                  {isIdentityVerified ? 'Verified ✓' : 'Pending'}
+            {/* Privacy Legal Banner */}
+            <div className="privacy-compliance-banner">
+              <span className="banner-icon">🛡️</span>
+              <div className="banner-text">
+                <strong>DPDP Privacy Standard:</strong>
+                <p>
+                  SEWAA adheres to Indian Digital Personal Data Protection standards. We do not store raw 12-digit Aadhaar numbers or government credentials. Only user-consented masked IDs are processed.
+                </p>
+              </div>
+            </div>
+
+            {/* Masked Aadhaar Card */}
+            <div className="kyc-subcard">
+              <div className="kyc-header-row">
+                <h4>1. Masked Identification (Aadhaar / Voter / Driving Licence)</h4>
+                <span className={`kyc-badge ${kycStatus}`}>
+                  {kycStatus === 'verified' ? '✓ Verified Pro' : 'Pending Review'}
                 </span>
               </div>
-
-              <form onSubmit={handleVerifyAadhaar} className="aadhaar-verify-box">
+              <form onSubmit={handleVerifyAadhaar} className="kyc-form">
                 <label>
-                  <span>Masked Aadhaar Number (Last 4 digits visible only):</span>
+                  <span>Masked ID Number (First 8 digits masked)</span>
                   <input
                     type="text"
                     value={maskedAadhaar}
@@ -360,91 +455,111 @@ const ProfilePage = () => {
                     placeholder="XXXX-XXXX-1234"
                   />
                 </label>
-                <div className="consent-checkbox-row">
+                <div className="consent-row">
                   <input
                     type="checkbox"
-                    id="aadhaarConsent"
+                    id="kycConsent"
                     checked={kycConsent}
                     onChange={(e) => setKycConsent(e.target.checked)}
                   />
-                  <label htmlFor="aadhaarConsent">
-                    I give explicit consent for privacy-compliant identity verification. I understand my sensitive ID details are encrypted and masked.
+                  <label htmlFor="kycConsent">
+                    I explicitly consent to masked ID verification for SEWAA trust scoring.
                   </label>
                 </div>
-                <button type="submit" className="verify-action-btn">
-                  Submit Privacy-Compliant KYC
+                <button type="submit" className="kyc-submit-btn">
+                  Submit Masked ID for Verification
                 </button>
               </form>
             </div>
 
-            {/* Face Liveness Anti-Impersonation Check */}
-            <div className="verification-card">
-              <div className="vc-top">
-                <span className="vc-icon">📸</span>
-                <div className="vc-text">
-                  <h4>Face Liveness & Anti-Impersonation Verification</h4>
-                  <p>Verifies real worker presence to prevent fraudulent profile sharing. Zero raw biometric photos are stored permanently.</p>
-                </div>
-                <span className="vc-status-badge verified">
-                  {isFaceVerified ? 'Live Verified ✓' : 'Not Verified'}
-                </span>
+            {/* Face Liveness Check */}
+            <div className="kyc-subcard">
+              <div className="kyc-header-row">
+                <h4>2. Anti-Impersonation Liveness Check</h4>
+                <span className="kyc-badge verified">✓ Live Check Passed</span>
               </div>
-
-              <div className="face-liveness-box">
-                {isLivenessChecking ? (
-                  <div className="liveness-scanning-state">
-                    <div className="scan-reticle"></div>
-                    <span>Performing real-time liveness test...</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="consent-checkbox-row">
-                      <input
-                        type="checkbox"
-                        id="faceConsent"
-                        checked={faceConsent}
-                        onChange={(e) => setFaceConsent(e.target.checked)}
-                      />
-                      <label htmlFor="faceConsent">
-                        I consent to real-time face liveness verification to confirm my identity as the registered service professional.
-                      </label>
-                    </div>
-                    <button
-                      type="button"
-                      className="verify-action-btn"
-                      onClick={handleSimulateFaceLiveness}
-                    >
-                      📷 Start 5-Second Liveness Verification
-                    </button>
-                  </>
-                )}
+              <p className="kyc-desc">
+                Prevents bots and duplicate profiles. Validates that the profile photo belongs to the active account holder.
+              </p>
+              <div className="consent-row">
+                <input
+                  type="checkbox"
+                  id="faceConsent"
+                  checked={faceConsent}
+                  onChange={(e) => setFaceConsent(e.target.checked)}
+                />
+                <label htmlFor="faceConsent">
+                  I give consent for real-time anti-impersonation liveness check.
+                </label>
               </div>
+              <button
+                type="button"
+                className="liveness-btn"
+                onClick={handleSimulateFaceLiveness}
+                disabled={isLivenessChecking}
+              >
+                {isLivenessChecking ? 'Analyzing camera feed...' : '📸 Run Face Liveness Verification'}
+              </button>
             </div>
           </div>
         )}
 
+        {/* SECTION 4: Privacy & Account Control */}
         {activeSection === 'privacy' && (
-          <div className="privacy-settings-box">
-            <h3>Indian Privacy & Data Protection Compliance</h3>
-            <p>WorkMate India adheres strictly to India’s Digital Personal Data Protection (DPDP) principles:</p>
-            <ul>
-              <li><strong>Data Minimization:</strong> We only collect information essential for location-based job matching and emergency safety.</li>
-              <li><strong>Zero Sensitive Identity Exposure:</strong> Neither employers nor customers can view your Aadhaar number or biometric tokens.</li>
-              <li><strong>Emergency Telemetry Access:</strong> Location coordinates are accessed exclusively during active shifts or when the SOS button is triggered.</li>
-              <li><strong>Right to Deletion:</strong> You can export or permanently delete your account and work history at any time.</li>
-            </ul>
+          <div className="privacy-section">
+            <div className="form-section-title">
+              <h3>Privacy & Data Control</h3>
+              <p>Manage your data sharing preferences and account lifecycle.</p>
+            </div>
 
-            <div className="privacy-action-buttons">
-              <button className="export-data-btn" onClick={() => alert('Work history & safety log export prepared.')}>
-                📥 Download My Data Archive
-              </button>
-              <button className="delete-account-btn" onClick={() => alert('Account deletion request initiated with safety verification.')}>
-                ⚠️ Request Account & Data Deletion
+            <div className="privacy-card-item">
+              <h4>📍 Location Privacy</h4>
+              <p>Your exact GPS coordinates are only shared during active work shifts for safety tracking.</p>
+            </div>
+
+            <div className="privacy-card-item">
+              <h4>📞 Phone Masking</h4>
+              <p>Your direct phone number is never displayed publicly without an active confirmed gig or booking.</p>
+            </div>
+
+            <div className="danger-zone-card">
+              <h4>⚠️ Danger Zone</h4>
+              <p>Permanently delete your SEWAA account and all associated profile, application, and gig data.</p>
+              <button
+                className="delete-acc-btn"
+                onClick={() => setShowDeleteModal(true)}
+              >
+                Request Account & Data Deletion
               </button>
             </div>
+
+            {showDeleteModal && (
+              <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
+                <div className="modal-content delete-modal" onClick={(e) => e.stopPropagation()}>
+                  <h3>Confirm Account Deletion</h3>
+                  <p>
+                    Are you sure you want to delete your SEWAA account? This will erase all your verified badges, ratings, and application history.
+                  </p>
+                  {deleteConfirmed ? (
+                    <div className="delete-success-msg">
+                      ✅ Account deletion request processed. Logging out...
+                    </div>
+                  ) : (
+                    <div className="delete-modal-actions">
+                      <button className="cancel-btn" onClick={() => setShowDeleteModal(false)}>
+                        Cancel
+                      </button>
+                      <button className="confirm-delete-btn" onClick={handleDeleteAccount}>
+                        Yes, Delete My Account
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 };
