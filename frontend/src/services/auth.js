@@ -25,10 +25,14 @@ const authClient = axios.create({
   },
 });
 
-// Helper to extract clean error message
+// Helper to extract clean user-friendly error message
 export const parseAuthError = (err, defaultMsg = 'Authentication request failed.') => {
-  if (err?.response?.data?.detail) {
-    return err.response.data.detail;
+  const detail = err?.response?.data?.detail;
+  if (typeof detail === 'string') {
+    return detail;
+  }
+  if (detail && typeof detail === 'object' && detail.message) {
+    return detail.message;
   }
   if (err?.response?.data?.message) {
     return err.response.data.message;
