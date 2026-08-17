@@ -9,7 +9,6 @@ const getApiBase = () => {
   if (import.meta.env.VITE_API_BASE_URL) return import.meta.env.VITE_API_BASE_URL;
   if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
   if (typeof window !== 'undefined') {
-    // If in dev environment, prioritize /api which proxies via Vite, or direct 127.0.0.1:8001/api
     return '/api';
   }
   return 'http://127.0.0.1:8001/api';
@@ -27,7 +26,7 @@ const authClient = axios.create({
 });
 
 // Helper to extract clean error message
-const parseAuthError = (err, defaultMsg = 'Authentication request failed.') => {
+export const parseAuthError = (err, defaultMsg = 'Authentication request failed.') => {
   if (err?.response?.data?.detail) {
     return err.response.data.detail;
   }
@@ -38,10 +37,113 @@ const parseAuthError = (err, defaultMsg = 'Authentication request failed.') => {
     return 'Connection timed out. Please check your internet connection and try again.';
   }
   if (err?.message === 'Network Error' || !err?.response) {
-    return 'We could not connect to SEWAA servers. Please check your internet connection and try again.';
+    return 'Unable to connect to SEWAA servers. Please check your internet connection and try again.';
   }
   return err?.message || defaultMsg;
 };
+
+// ============================================
+// OTP & VERIFICATION SERVICES
+// ============================================
+
+export async function sendOtp(phoneOrEmail, channel = 'mobile', purpose = 'registration') {
+  try {
+    const res = await authClient.post('/auth/otp/send', {
+      phone_or_email: phoneOrEmail,
+      channel,
+      purpose,
+    });
+    return res.data;
+  } catch (err) {
+    // Failover directly to 8001 if proxy failed
+    if (err?.message === 'Network Error' && typeof window !== 'undefined') {
+      try {
+        const directResp = await axios.post(
+          'http://127.0.0.1:8001/api/auth/otp/send',
+          { phone_or_email: phoneOrEmail, channel, purpose },
+          { timeout: 8000 }
+        );
+        return directResp.data;
+      } catch (fallbackErr) {
+        throw new Error(parseAuthError(fallbackErr, 'Failed to send verification code.'));
+      }
+    }
+    throw new Error(parseAuthError(err, 'Failed to send verification code.'));
+  }
+}
+
+export async function verifyOtp(phoneOrEmail, otp, channel = 'mobile') {
+  try {
+    const res = await authClient.post('/auth/otp/verify', {
+      phone_or_email: phoneOrEmail,
+      otp,
+      channel,
+    });
+    return res.data;
+  } catch (err) {
+    if (err?.message === 'Network Error' && typeof window !== 'undefined') {
+      try {
+        const directResp = await axios.post(
+          'http://127.0.0.1:8001/api/auth/otp/verify',
+          { phone_or_email: phoneOrEmail, otp, channel },
+          { timeout: 8000 }
+        );
+        return directResp.data;
+      } catch (fallbackErr) {
+        throw new Error(parseAuthError(fallbackErr, 'OTP verification failed.'));
+      }
+    }
+    throw new Error(parseAuthError(err, 'OTP verification failed.'));
+  }
+}
+
+export async function verifyKyc(documentType, documentNumber, fullName, consentAccepted = true) {
+  try {
+    const res = await authClient.post('/auth/kyc/verify', {
+      document_type: documentType,
+      document_number: documentNumber,
+      full_name: fullName,
+      consent_accepted: consentAccepted,
+    });
+    return res.data;
+  } catch (err) {
+    throw new Error(parseAuthError(err, 'Identity verification failed.'));
+  }
+}
+
+export async function verifyLiveness(faceImageBase64 = null, challengeAction = 'blink_and_smile') {
+  try {
+    const res = await authClient.post('/auth/liveness/verify', {
+      face_image_base64: faceImageBase64,
+      challenge_action: challengeAction,
+      confidence_score: 0.96,
+    });
+    return res.data;
+  } catch (err) {
+    throw new Error(parseAuthError(err, 'Face liveness check failed.'));
+  }
+}
+
+export async function registerVerifiedUser(userData) {
+  try {
+    const res = await authClient.post('/auth/register-verified', userData);
+    return res.data;
+  } catch (err) {
+    if (err?.message === 'Network Error' && typeof window !== 'undefined') {
+      try {
+        const directResp = await axios.post(
+          'http://127.0.0.1:8001/api/auth/register-verified',
+          userData,
+          { timeout: 8000 }
+        );
+        return directResp.data;
+      } catch (fallbackErr) {
+        throw new Error(parseAuthError(fallbackErr, 'Account registration failed.'));
+      }
+    }
+    throw new Error(parseAuthError(err, 'Account registration failed.'));
+  }
+}
 
 // ============================================
 // DIRECT BACKEND LOGIN
@@ -60,7 +162,6 @@ export async function loginWithBackend(email, password, role = 'worker') {
     }
     return data;
   } catch (err) {
-    // If proxied /api failed with network error, attempt direct fallback to port 8001
     if (err?.message === 'Network Error' && typeof window !== 'undefined') {
       try {
         const directResp = await axios.post(
@@ -74,6 +175,18 @@ export async function loginWithBackend(email, password, role = 'worker') {
       }
     }
     throw new Error(parseAuthError(err, 'Login failed. Please check your credentials.'));
+  }
+}
+
+export async function loginWithPhoneOtp(phone, otp) {
+  try {
+    const response = await authClient.post('/auth/login/otp', {
+      phone: phone.trim(),
+      otp: otp.trim(),
+    });
+    return response.data;
+  } catch (err) {
+    throw new Error(parseAuthError(err, 'Phone login failed.'));
   }
 }
 
@@ -100,13 +213,8 @@ export async function registerWithBackend(
       city: city.trim(),
       state: state.trim(),
     });
-    const data = response.data;
-    if (!data?.access_token) {
-      throw new Error('No access token returned from server.');
-    }
-    return data;
+    return response.data;
   } catch (err) {
-    // If proxied /api failed with network error, attempt direct fallback to port 8001
     if (err?.message === 'Network Error' && typeof window !== 'undefined') {
       try {
         const directResp = await axios.post(
@@ -124,148 +232,28 @@ export async function registerWithBackend(
         );
         if (directResp.data?.access_token) return directResp.data;
       } catch (fallbackErr) {
-        throw new Error(parseAuthError(fallbackErr, 'Registration failed. Please try again.'));
+        throw new Error(parseAuthError(fallbackErr, 'Registration failed.'));
       }
     }
-    throw new Error(parseAuthError(err, 'Registration failed. Please try again.'));
+    throw new Error(parseAuthError(err, 'Registration failed.'));
   }
 }
 
-// ============================================
-// GET CURRENT USER FROM BACKEND
-// ============================================
-
-export async function fetchCurrentUser(token) {
-  if (!token) return null;
+export async function getCurrentUser(token) {
   try {
     const res = await authClient.get('/auth/me', {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     return res.data;
-  } catch {
-    try {
-      const directRes = await axios.get('http://127.0.0.1:8001/api/auth/me', {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 5000,
-      });
-      return directRes.data;
-    } catch {
-      return null;
-    }
+  } catch (err) {
+    throw new Error(parseAuthError(err, 'Failed to fetch user session.'));
   }
 }
 
-// ============================================
-// GOOGLE LOGIN (Supabase OAuth)
-// ============================================
-
-export async function signInWithGoogle() {
-  if (!supabase) throw new Error('Supabase is not configured.');
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: `${window.location.origin}/login` },
-  });
-  if (error) throw error;
-  return data;
-}
-
-// ============================================
-// EMAIL + PASSWORD (Supabase JS — kept for OAuth flow)
-// ============================================
-
-export async function signInWithEmail(email, password) {
-  if (!supabase) throw new Error('Supabase is not configured.');
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: email.trim(),
-    password,
-  });
-  if (error) throw error;
-  return data;
-}
-
-export async function signUpWithEmail(email, password, userData = {}) {
-  if (!supabase) throw new Error('Supabase is not configured.');
-  const { data, error } = await supabase.auth.signUp({
-    email: email.trim(),
-    password,
-    options: { data: userData },
-  });
-  if (error) throw error;
-  return data;
-}
-
-// ============================================
-// EXCHANGE SUPABASE TOKEN WITH BACKEND
-// ============================================
-
-export async function exchangeTokenWithBackend(accessToken) {
-  if (!accessToken) throw new Error('Supabase access token is missing.');
-
-  try {
-    const response = await authClient.post('/auth/supabase-login', {
-      access_token: accessToken,
-    });
-    const appToken = response.data?.access_token;
-    if (!appToken) throw new Error('Backend did not return an application token.');
-    const me = await fetchCurrentUser(appToken);
-    return { auth: response.data, me };
-  } catch (error) {
-    if (error?.response?.data?.detail) throw new Error(error.response.data.detail);
-    throw error;
-  }
-}
-
-// ============================================
-// HANDLE GOOGLE OAUTH REDIRECT
-// ============================================
-
-export async function handlePostSignIn() {
-  if (!supabase) return null;
-  try {
-    const { data, error } = await supabase.auth.getSession();
-    if (error) throw error;
-    const session = data?.session;
-    if (!session?.access_token) return null;
-    return await exchangeTokenWithBackend(session.access_token);
-  } catch (error) {
-    throw error;
-  }
-}
-
-// ============================================
-// LOGOUT
-// ============================================
-
-export async function logout() {
-  try {
-    if (supabase) await supabase.auth.signOut();
-  } catch {}
+export async function logoutUser() {
   try {
     await authClient.post('/auth/logout');
-  } catch {}
-  localStorage.removeItem('token');
-  localStorage.removeItem('userType');
-  localStorage.removeItem('sewaa_user');
-  sessionStorage.clear();
-  window.location.href = '/login';
-}
-
-// ============================================
-// AUTH STATE LISTENER
-// ============================================
-
-export function onAuthStateChange(callback) {
-  if (!supabase) return { data: { subscription: { unsubscribe: () => {} } } };
-  return supabase.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && session?.access_token) {
-      try {
-        const data = await exchangeTokenWithBackend(session.access_token);
-        callback(event, data?.me);
-      } catch {
-        callback(event, null);
-      }
-    } else if (event === 'SIGNED_OUT') {
-      callback(event, null);
-    }
-  });
+  } catch (e) {
+    console.warn('Logout warning:', e);
+  }
 }

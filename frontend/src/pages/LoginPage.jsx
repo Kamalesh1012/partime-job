@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store';
-import { loginWithBackend, fetchCurrentUser } from '../services/auth';
+import { loginWithBackend, loginWithPhoneOtp, sendOtp, getCurrentUser } from '../services/auth';
 import './LoginPage.css';
 
 const LoginPage = ({ setIsLoggedIn, setUserType }) => {
@@ -10,81 +10,141 @@ const LoginPage = ({ setIsLoggedIn, setUserType }) => {
   const setUser = useAuthStore((state) => state.setUser);
   const setStoreUserType = useAuthStore((state) => state.setUserType);
 
-  const [selectedRole, setSelectedRole] = useState('worker'); // 'worker' | 'technician' | 'employer' | 'customer'
+  const [authMode, setAuthMode] = useState('otp'); // 'otp' | 'password'
+  const [selectedRole, setSelectedRole] = useState('worker');
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault();
+  useEffect(() => {
+    let timer;
+    if (cooldown > 0) {
+      timer = setInterval(() => setCooldown((c) => c - 1), 1000);
+    }
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
+  const handleSendOtp = async (e) => {
+    e?.preventDefault();
     setError('');
+    setSuccessMsg('');
+    const rawPhone = phone.replace(/\D/g, '');
+    if (rawPhone.length < 10) {
+      setError('Please enter a valid 10-digit Indian mobile number.');
+      return;
+    }
+
     setLoading(true);
-
     try {
-      if (!email.trim()) throw new Error('Please enter your email.');
-      if (!password) throw new Error('Please enter your password.');
-
-      const data = await loginWithBackend(email.trim(), password, selectedRole);
-
-      if (data?.access_token) {
-        setToken(data.access_token);
-        const resolvedRole = data.role || selectedRole;
-        setStoreUserType(resolvedRole);
-        if (setUserType) setUserType(resolvedRole);
-        if (setIsLoggedIn) setIsLoggedIn(true);
-
-        const me = await fetchCurrentUser(data.access_token);
-        if (me) {
-          setUser(me);
-        } else {
-          setUser({
-            id: data.user_id || 'user-' + Date.now(),
-            email: data.email || email.trim(),
-            role: resolvedRole,
-          });
-        }
-
-        if (resolvedRole === 'employer') {
-          navigate('/employer-dashboard');
-        } else if (resolvedRole === 'technician') {
-          navigate('/services');
-        } else {
-          navigate('/jobs');
-        }
+      const res = await sendOtp(phone, 'mobile', 'login');
+      setOtpSent(true);
+      setCooldown(30);
+      setSuccessMsg(res?.message || 'Verification OTP sent to your mobile.');
+      if (res?.dev_hint) {
+        setOtp(res.dev_hint);
       }
     } catch (err) {
-      setError(err?.message || 'Login failed. Please verify your credentials.');
+      setError(err?.message || 'Failed to send OTP. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleOtpLogin = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!otp.trim() || otp.trim().length < 6) {
+      setError('Please enter the 6-digit verification code.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await loginWithPhoneOtp(phone, otp);
+      if (data?.access_token) {
+        completeSession(data);
+      }
+    } catch (err) {
+      setError(err?.message || 'Invalid or expired OTP. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordLogin = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!email.trim()) {
+      setError('Please enter your email or mobile.');
+      return;
+    }
+    if (!password) {
+      setError('Please enter your password.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await loginWithBackend(email.trim(), password, selectedRole);
+      if (data?.access_token) {
+        completeSession(data);
+      }
+    } catch (err) {
+      setError(err?.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const completeSession = async (data) => {
+    setToken(data.access_token);
+    const resolvedRole = data.role || selectedRole;
+    setStoreUserType(resolvedRole);
+    if (setUserType) setUserType(resolvedRole);
+    if (setIsLoggedIn) setIsLoggedIn(true);
+
+    try {
+      const me = await getCurrentUser(data.access_token);
+      if (me) {
+        setUser(me);
+        localStorage.setItem('sewaa_user', JSON.stringify(me));
+      } else {
+        const fallbackUser = {
+          id: data.user_id || 'user-' + Date.now(),
+          email: data.email || email.trim(),
+          full_name: data.full_name || 'SEWAA Member',
+          role: resolvedRole,
+          phone: data.phone || phone,
+          city: data.city || 'Chennai',
+          state: data.state || 'Tamil Nadu',
+        };
+        setUser(fallbackUser);
+        localStorage.setItem('sewaa_user', JSON.stringify(fallbackUser));
+      }
+    } catch (e) {}
+
+    if (resolvedRole === 'employer') {
+      navigate('/employer-dashboard');
+    } else if (resolvedRole === 'technician') {
+      navigate('/services');
+    } else {
+      navigate('/jobs');
+    }
+  };
+
   const handleQuickDemoLogin = async (demoEmail, demoRole) => {
-    setEmail(demoEmail);
-    setPassword('password123');
-    setSelectedRole(demoRole);
     setError('');
     setLoading(true);
-
     try {
       const data = await loginWithBackend(demoEmail, 'password123', demoRole);
       if (data?.access_token) {
-        setToken(data.access_token);
-        setStoreUserType(demoRole);
-        if (setUserType) setUserType(demoRole);
-        if (setIsLoggedIn) setIsLoggedIn(true);
-
-        const me = await fetchCurrentUser(data.access_token);
-        if (me) setUser(me);
-
-        if (demoRole === 'employer') {
-          navigate('/employer-dashboard');
-        } else if (demoRole === 'technician') {
-          navigate('/services');
-        } else {
-          navigate('/jobs');
-        }
+        completeSession(data);
       }
     } catch (err) {
       setError(err?.message || 'Quick login failed.');
@@ -98,140 +158,221 @@ const LoginPage = ({ setIsLoggedIn, setUserType }) => {
       <div className="login-container">
         {/* Left Side Info */}
         <div className="login-info">
-          <div className="platform-tag-pill">SEWAA Portal</div>
+          <div className="platform-tag-pill">🇮🇳 PAN-INDIA PART-TIME & LOCAL SERVICES</div>
           <div className="auth-logo-header">
             <img src="/sewaa-logo.png" alt="SEWAA Logo" className="auth-brand-logo" />
             <div>
               <h1>SEWAA</h1>
-              <p className="auth-brand-sub">Part-Time Jobs & Local Services</p>
+              <span className="auth-brand-sub">Part-Time Jobs & Local Services</span>
             </div>
           </div>
           <p className="auth-brand-tagline">
-            Log in to manage shifts, track applications, book services, or hire verified local talent.
+            Your trusted gateway to verified shifts, daily wage opportunities, and on-demand doorstep service gigs across India.
           </p>
+
           <div className="login-features">
             <div className="feature">
               <span className="icon">⚡</span>
-              <span>Instant Job Applications & Shift Bookings</span>
+              <span>Same-day payouts & flexible part-time shifts</span>
             </div>
             <div className="feature">
               <span className="icon">🛡️</span>
-              <span>24x7 Safety Assurance & GPS Live Tracking</span>
+              <span>100% Verified employers & skilled technicians</span>
             </div>
             <div className="feature">
               <span className="icon">📍</span>
-              <span>Hyperlocal Matching across all 786 Districts</span>
+              <span>Hyperlocal matching in your district & neighborhood</span>
+            </div>
+          </div>
+
+          <div className="demo-accounts-box">
+            <p className="demo-title">⚡ Fast Test Accounts:</p>
+            <div className="demo-chips-grid">
+              <button
+                type="button"
+                className="demo-chip-btn"
+                onClick={() => handleQuickDemoLogin('worker@sewaa.in', 'worker')}
+              >
+                👷 Worker (Arun)
+              </button>
+              <button
+                type="button"
+                className="demo-chip-btn"
+                onClick={() => handleQuickDemoLogin('tech@sewaa.in', 'technician')}
+              >
+                🔧 Technician (Murugan)
+              </button>
+              <button
+                type="button"
+                className="demo-chip-btn"
+                onClick={() => handleQuickDemoLogin('employer@sewaa.in', 'employer')}
+              >
+                🏢 Employer (Kavitha)
+              </button>
+              <button
+                type="button"
+                className="demo-chip-btn"
+                onClick={() => handleQuickDemoLogin('customer@sewaa.in', 'customer')}
+              >
+                👤 Customer (Deepa)
+              </button>
             </div>
           </div>
         </div>
 
         {/* Right Side Form */}
         <div className="login-form-container">
-          <h2 style={{ marginBottom: '0.35rem', textAlign: 'center' }}>Welcome Back</h2>
-          <p style={{ textAlign: 'center', fontSize: '0.85rem', color: '#64748b', marginBottom: '1.25rem' }}>
-            Choose your account role to continue
-          </p>
+          <div className="login-form-header">
+            <h2>Welcome Back 👋</h2>
+            <p>Log in to discover shifts, manage work requests, and earn.</p>
+          </div>
 
-          {/* 4 Role Selector Tabs */}
-          <div className="auth-role-tabs">
+          {/* Mode Switcher: Mobile OTP vs Email/Password */}
+          <div className="auth-mode-tabs">
             <button
               type="button"
-              className={`role-tab ${selectedRole === 'worker' ? 'active' : ''}`}
-              onClick={() => setSelectedRole('worker')}
+              className={`mode-tab-btn ${authMode === 'otp' ? 'active' : ''}`}
+              onClick={() => { setAuthMode('otp'); setError(''); }}
             >
-              🛵 Worker
+              📱 Mobile OTP Login
             </button>
             <button
               type="button"
-              className={`role-tab ${selectedRole === 'technician' ? 'active' : ''}`}
-              onClick={() => setSelectedRole('technician')}
+              className={`mode-tab-btn ${authMode === 'password' ? 'active' : ''}`}
+              onClick={() => { setAuthMode('password'); setError(''); }}
             >
-              🔧 Technician
-            </button>
-            <button
-              type="button"
-              className={`role-tab ${selectedRole === 'employer' ? 'active' : ''}`}
-              onClick={() => setSelectedRole('employer')}
-            >
-              💼 Employer
-            </button>
-            <button
-              type="button"
-              className={`role-tab ${selectedRole === 'customer' ? 'active' : ''}`}
-              onClick={() => setSelectedRole('customer')}
-            >
-              🏠 Customer
+              🔑 Email / Password
             </button>
           </div>
 
-          {error && <div className="login-error-box">⚠️ {error}</div>}
+          {error && <div className="error-message">⚠️ {error}</div>}
+          {successMsg && <div className="success-message">✅ {successMsg}</div>}
 
-          <form onSubmit={handleLoginSubmit} className="auth-form-body">
-            <div className="form-group">
-              <label>Email Address</label>
-              <input
-                type="email"
-                placeholder="name@example.com"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
+          {authMode === 'otp' ? (
+            /* Telegram-Style Clean Mobile OTP Flow */
+            !otpSent ? (
+              <form onSubmit={handleSendOtp} className="auth-form-body">
+                <div className="form-group">
+                  <label htmlFor="loginPhone">Mobile Number *</label>
+                  <div className="phone-input-row">
+                    <span className="country-code-badge">🇮🇳 +91</span>
+                    <input
+                      id="loginPhone"
+                      type="tel"
+                      required
+                      placeholder="Enter 10-digit mobile number"
+                      maxLength={10}
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                    />
+                  </div>
+                </div>
 
-            <div className="form-group">
-              <label>Password</label>
-              <input
-                type="password"
-                placeholder="Enter your password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
+                <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+                  {loading ? 'Sending OTP...' : 'Send Verification OTP →'}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleOtpLogin} className="auth-form-body">
+                <div className="otp-banner">
+                  <span>📱 Code sent to <strong>+91 {phone}</strong></span>
+                  <button type="button" className="btn-link-edit" onClick={() => setOtpSent(false)}>
+                    Change Number
+                  </button>
+                </div>
 
-            <button type="submit" className="login-btn" disabled={loading}>
-              {loading ? 'Logging In...' : 'Log In to SEWAA →'}
-            </button>
+                <div className="form-group">
+                  <label htmlFor="loginOtp">Enter 6-Digit Verification Code *</label>
+                  <input
+                    id="loginOtp"
+                    type="text"
+                    required
+                    maxLength={6}
+                    placeholder="● ● ● ● ● ●"
+                    className="otp-boxed-input"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                    autoFocus
+                  />
+                </div>
 
-            {/* Quick Demo Test Buttons */}
-            <div className="quick-demo-section">
-              <span className="demo-label">⚡ 1-Click Fast Login:</span>
-              <div className="quick-demo-chips">
-                <button
-                  type="button"
-                  className="demo-chip"
-                  onClick={() => handleQuickDemoLogin('worker@sewaa.in', 'worker')}
-                >
-                  🛵 Worker (Arun)
+                <div className="otp-resend-row">
+                  {cooldown > 0 ? (
+                    <span className="resend-cooldown">Resend OTP in <strong>{cooldown}s</strong></span>
+                  ) : (
+                    <button type="button" className="resend-btn" onClick={handleSendOtp} disabled={loading}>
+                      🔄 Resend OTP
+                    </button>
+                  )}
+                </div>
+
+                <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+                  {loading ? 'Verifying...' : 'Verify & Log In →'}
                 </button>
-                <button
-                  type="button"
-                  className="demo-chip"
-                  onClick={() => handleQuickDemoLogin('tech@sewaa.in', 'technician')}
-                >
-                  🔧 Tech (Murugan)
-                </button>
-                <button
-                  type="button"
-                  className="demo-chip"
-                  onClick={() => handleQuickDemoLogin('employer@sewaa.in', 'employer')}
-                >
-                  💼 Employer (Kavitha)
-                </button>
-                <button
-                  type="button"
-                  className="demo-chip"
-                  onClick={() => handleQuickDemoLogin('customer@sewaa.in', 'customer')}
-                >
-                  🏠 Customer (Deepa)
-                </button>
+              </form>
+            )
+          ) : (
+            /* Email & Password Flow */
+            <form onSubmit={handlePasswordLogin} className="auth-form-body">
+              <div className="form-group">
+                <label>Account Role *</label>
+                <div className="role-selector-pills">
+                  {[
+                    { id: 'worker', label: '👷 Worker' },
+                    { id: 'technician', label: '🔧 Tech' },
+                    { id: 'employer', label: '🏢 Employer' },
+                    { id: 'customer', label: '👤 Customer' },
+                  ].map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      className={`role-pill ${selectedRole === r.id ? 'active' : ''}`}
+                      onClick={() => setSelectedRole(r.id)}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <p className="auth-switch-prompt">
-              Don't have an account? <Link to="/register">Create Free Account</Link>
+              <div className="form-group">
+                <label htmlFor="loginEmail">Email Address or Mobile *</label>
+                <input
+                  id="loginEmail"
+                  type="text"
+                  required
+                  placeholder="e.g. worker@sewaa.in"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="loginPassword">Password *</label>
+                <input
+                  id="loginPassword"
+                  type="password"
+                  required
+                  placeholder="Enter your account password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+
+              <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+                {loading ? 'Logging in...' : 'Sign In to SEWAA →'}
+              </button>
+            </form>
+          )}
+
+          <div className="login-form-footer">
+            <p>
+              New to SEWAA?{' '}
+              <Link to="/register" className="auth-switch-link">
+                Join Free (Create Verified Account) →
+              </Link>
             </p>
-          </form>
+          </div>
         </div>
       </div>
     </div>
